@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/services/plex_auth_service.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/services/audio_player_service.dart';
-import '../../core/services/database_service.dart';
+import '../../../core/database/database_service.dart';
 import 'widgets/songs_header.dart';
 import 'widgets/songs_action_buttons.dart';
 import 'widgets/songs_table_header.dart';

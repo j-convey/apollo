@@ -1,76 +1,6 @@
-import 'dart:io';
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:path/path.dart';
+part of '../database_service.dart';
 
-class DatabaseService {
-  static Database? _database;
-  
-  // Singleton pattern
-  static final DatabaseService _instance = DatabaseService._internal();
-  factory DatabaseService() => _instance;
-  DatabaseService._internal();
-
-  Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDatabase();
-    return _database!;
-  }
-
-  Future<Database> _initDatabase() async {
-    // Initialize FFI for desktop platforms
-    if (Platform.isWindows || Platform.isLinux) {
-      sqfliteFfiInit();
-      databaseFactory = databaseFactoryFfi;
-    }
-
-    final databasesPath = await getDatabasesPath();
-    final path = join(databasesPath, 'apollo_music.db');
-
-    return await openDatabase(
-      path,
-      version: 1,
-      onCreate: (db, version) async {
-        // Create tracks table
-        await db.execute('''
-          CREATE TABLE tracks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            server_id TEXT NOT NULL,
-            library_key TEXT NOT NULL,
-            track_key TEXT NOT NULL,
-            title TEXT NOT NULL,
-            artist TEXT,
-            album TEXT,
-            duration INTEGER,
-            thumb TEXT,
-            year INTEGER,
-            added_at INTEGER,
-            media_data TEXT,
-            UNIQUE(server_id, track_key)
-          )
-        ''');
-
-        // Create index for faster queries
-        await db.execute('''
-          CREATE INDEX idx_server_library ON tracks(server_id, library_key)
-        ''');
-
-        // Create sync metadata table
-        await db.execute('''
-          CREATE TABLE sync_metadata (
-            server_id TEXT PRIMARY KEY,
-            library_key TEXT NOT NULL,
-            last_sync INTEGER NOT NULL,
-            track_count INTEGER NOT NULL
-          )
-        ''');
-
-        print('DATABASE: Tables created successfully');
-      },
-    );
-  }
-
+extension TracksExtension on DatabaseService {
   // Save tracks to database
   Future<void> saveTracks(
     String serverId,
@@ -207,18 +137,6 @@ class DatabaseService {
     await db.delete('tracks', where: 'server_id = ?', whereArgs: [serverId]);
     await db.delete('sync_metadata', where: 'server_id = ?', whereArgs: [serverId]);
     print('DATABASE: Cleared tracks for server $serverId');
-  }
-
-  // Parse media data string back to list
-  List<dynamic> _parseMediaData(String mediaData) {
-    try {
-      if (mediaData.isEmpty) return [];
-      final decoded = jsonDecode(mediaData);
-      return decoded is List ? decoded : [];
-    } catch (e) {
-      debugPrint('DATABASE: Error parsing media data: $e');
-      return [];
-    }
   }
 
   // Get track count

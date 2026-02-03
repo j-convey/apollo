@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:apollo/core/services/plex_auth_service.dart';
 import 'package:apollo/core/services/storage_service.dart';
-import 'package:apollo/core/services/database_service.dart';
+import '../../../core/database/database_service.dart';
 
 class ServerSettingsPage extends StatefulWidget {
   const ServerSettingsPage({super.key});

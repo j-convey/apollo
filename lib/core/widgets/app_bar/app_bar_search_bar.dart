@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../services/database_service.dart';
+import '../../../core/database/database_service.dart';
 import '../../services/audio_player_service.dart';
 import '../../services/storage_service.dart';
 
