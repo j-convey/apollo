@@ -5,6 +5,7 @@ class StorageService {
   static const String _plexTokenKey = 'plex_token';
   static const String _usernameKey = 'plex_username';
   static const String _selectedServersKey = 'selected_servers';
+  static const String _profileImagePathKey = 'profile_image_path';
 
   // Save Plex token
   Future<void> savePlexToken(String token) async {
@@ -28,6 +29,18 @@ class StorageService {
   Future<String?> getUsername() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_usernameKey);
+  }
+
+  // Save profile image path
+  Future<void> saveProfileImagePath(String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_profileImagePathKey, path);
+  }
+
+  // Get profile image path
+  Future<String?> getProfileImagePath() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_profileImagePathKey);
   }
 
   // Save selected servers and libraries

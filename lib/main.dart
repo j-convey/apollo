@@ -7,6 +7,7 @@ import 'core/services/audio_player_service.dart';
 import 'core/services/storage_service.dart';
 import 'features/home/home_page.dart';
 import 'features/settings/settings_page.dart';
+import 'features/profile/profile_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -154,7 +155,7 @@ class _MainScreenState extends State<MainScreen> {
               // TODO: Navigate to account page
             },
             onProfileTap: () {
-              // TODO: Navigate to profile page
+              _navigateToPage(ProfilePage(storageService: _storageService));
             },
             onSupportTap: () {
               // TODO: Open support page
