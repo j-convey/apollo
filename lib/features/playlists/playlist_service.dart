@@ -3,9 +3,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../../core/models/playlists.dart';
-import '../../../core/database/database_service.dart';
+import '../../core/database/database_service.dart';
 
 class PlaylistService {
   final DatabaseService _dbService = DatabaseService();
@@ -47,27 +46,12 @@ class PlaylistService {
 
   /// Retrieves playlists currently stored in the local database.
   Future<List<Playlist>> getLocalPlaylists() async {
-    final db = await _dbService.database;
-    final List<Map<String, dynamic>> maps = await db.query('playlists');
+    final maps = await _dbService.getAllPlaylists();
     return maps.map((map) => Playlist.fromMap(map)).toList();
   }
 
-  /// Helper to batch insert/update playlists
   Future<void> _savePlaylistsToDb(List<Playlist> playlists) async {
-    final db = await _dbService.database;
-    final batch = db.batch();
-
-    // Optional: Clear old playlists if you want a full sync
-    // batch.delete('playlists'); 
-
-    for (var playlist in playlists) {
-      batch.insert(
-        'playlists',
-        playlist.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }
-
-    await batch.commit(noResult: true);
+    final playlistMaps = playlists.map((p) => p.toMap()).toList();
+    await _dbService.savePlaylists(playlistMaps);
   }
 }

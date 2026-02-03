@@ -8,6 +8,7 @@ import 'package:path/path.dart';
 
 part 'tables/schema.dart';
 part 'tables/tracks_extension.dart';
+part 'tables/playlists_extension.dart';
 
 class DatabaseService {
   static Database? _database;
