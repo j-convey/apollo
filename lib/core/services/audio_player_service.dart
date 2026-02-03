@@ -1,8 +1,13 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 
 class AudioPlayerService extends ChangeNotifier {
   late final Player _player;
+  late final StreamSubscription<bool> _playingSubscription;
+  late final StreamSubscription<Duration> _durationSubscription;
+  late final StreamSubscription<Duration> _positionSubscription;
+  late final StreamSubscription<bool> _completedSubscription;
 
   Map<String, dynamic>? _currentTrack;
   bool _isPlaying = false;
@@ -16,20 +21,20 @@ class AudioPlayerService extends ChangeNotifier {
     _player = Player();
     
     // Listen to player state changes
-    _player.stream.playing.listen((playing) {
+    _playingSubscription = _player.stream.playing.listen((playing) {
       _isPlaying = playing;
       notifyListeners();
     });
 
     // Listen to duration changes
-    _player.stream.duration.listen((duration) {
+    _durationSubscription = _player.stream.duration.listen((duration) {
       _duration = duration;
       notifyListeners();
     });
 
     // Listen to position changes - throttle updates to reduce UI rebuilds
     Duration lastNotifiedPosition = Duration.zero;
-    _player.stream.position.listen((position) {
+    _positionSubscription = _player.stream.position.listen((position) {
       _position = position;
       // Only notify if position changed by at least 1 second to reduce rebuilds
       if ((position.inSeconds - lastNotifiedPosition.inSeconds).abs() >= 1) {
@@ -39,7 +44,7 @@ class AudioPlayerService extends ChangeNotifier {
     });
 
     // Listen to completion
-    _player.stream.completed.listen((completed) {
+    _completedSubscription = _player.stream.completed.listen((completed) {
       if (completed) {
         _isPlaying = false;
         _position = Duration.zero;
@@ -237,6 +242,10 @@ class AudioPlayerService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _playingSubscription.cancel();
+    _durationSubscription.cancel();
+    _positionSubscription.cancel();
+    _completedSubscription.cancel();
     _player.dispose();
     super.dispose();
   }

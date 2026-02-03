@@ -16,7 +16,6 @@ class PlaylistService {
       // 1. Fetch from API
       final uri = Uri.parse('$serverUrl/playlists').replace(queryParameters: {
         'X-Plex-Token': token,
-        'playlistType': 'audio', // Filter for audio playlists if desired
       });
 
       final response = await http.get(uri);

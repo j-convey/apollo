@@ -123,7 +123,7 @@ class _MainScreenState extends State<MainScreen> {
               serverUrl: _currentServerUrl,
             )),
             onProfileTap: () => _navigateToPage(ProfilePage(storageService: _storageService)),
-            onSettingsTap: () => _navigateToPage(const SettingsPage()),
+            onSettingsTap: () => _navigateToPage(SettingsPage(onNavigate: _navigateToPage)),
           ),
           Expanded(child: _currentPage),
           PlayerBar(playerService: _audioPlayerService),

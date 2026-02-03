@@ -24,7 +24,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
   Map<String, Set<String>> _selectedLibraries = {};
   Map<String, dynamic>? _syncStatus;
 
-  static const Color _backgroundColor = Color(0xFF121212);
+  static const Color _backgroundColor = Color(0xFF303030);
 
   @override
   void initState() {
@@ -357,10 +357,6 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _backgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: const Text('Server Settings'),
-      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
