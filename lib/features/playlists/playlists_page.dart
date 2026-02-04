@@ -36,49 +36,63 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
 
     try {
       final token = await _storageService.getPlexToken();
-      final serverUrl = await _storageService.getServerUrl();
+      
+      debugPrint('PLAYLISTS PAGE: Token: ${token != null ? "exists" : "null"}');
 
-      if (token == null || serverUrl == null || token.isEmpty || serverUrl.isEmpty) {
-        // First, try to load from local DB
-        final localPlaylists = await _playlistService.getLocalPlaylists();
-        if (mounted) {
-          setState(() {
-            _playlists = localPlaylists;
-            _isLoading = false;
-            // if local is empty, we still might want to show an error or empty state
-          });
-        }
+      if (token == null || token.isEmpty) {
+        await _loadLocalPlaylists('No token');
         return;
       }
 
       _token = token;
+
+      // Get the stored server URL for the selected server
+      final serverUrl = await _storageService.getSelectedServerUrl();
+      
+      debugPrint('PLAYLISTS PAGE: Server URL from storage: $serverUrl');
+
+      if (serverUrl == null) {
+        await _loadLocalPlaylists('No server URL saved - please select a library in Settings');
+        return;
+      }
+
       _serverUrl = serverUrl;
 
+      debugPrint('PLAYLISTS PAGE: Syncing playlists from server');
       final playlists = await _playlistService.syncPlaylists(
         _serverUrl!,
         _token!,
       );
+      debugPrint('PLAYLISTS PAGE: Synced ${playlists.length} playlists');
+      
       if (mounted) {
         setState(() {
           _playlists = playlists;
           _isLoading = false;
         });
       }
+    } catch (e, stackTrace) {
+      debugPrint('PLAYLISTS PAGE: Error loading playlists: $e');
+      debugPrint('PLAYLISTS PAGE: Stack trace: $stackTrace');
+      await _loadLocalPlaylists('Error: $e');
+    }
+  }
+
+  Future<void> _loadLocalPlaylists(String reason) async {
+    debugPrint('PLAYLISTS PAGE: $reason, loading local playlists');
+    try {
+      final localPlaylists = await _playlistService.getLocalPlaylists();
+      debugPrint('PLAYLISTS PAGE: Loaded ${localPlaylists.length} local playlists');
+      if (mounted) {
+        setState(() {
+          _playlists = localPlaylists;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      debugPrint('Error loading playlists: $e');
-      // Try local if sync fails
-      try {
-        final localPlaylists = await _playlistService.getLocalPlaylists();
-        if (mounted) {
-          setState(() {
-            _playlists = localPlaylists;
-            _isLoading = false;
-          });
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
+      debugPrint('PLAYLISTS PAGE: Failed to load local playlists: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -101,9 +115,9 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: GridView.builder(
-        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 200,
-          childAspectRatio: 0.75,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 5,
+          childAspectRatio: 1.0,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
         ),
@@ -148,21 +162,23 @@ class _PlaylistCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.grey[900],
-                borderRadius: BorderRadius.circular(8),
-                image: imageUrl != null
-                    ? DecorationImage(
-                        image: NetworkImage(imageUrl),
-                        fit: BoxFit.cover,
-                      )
+            child: AspectRatio(
+              aspectRatio: 1.0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[900],
+                  borderRadius: BorderRadius.circular(8),
+                  image: imageUrl != null
+                      ? DecorationImage(
+                          image: NetworkImage(imageUrl),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: imageUrl == null
+                    ? const Icon(Icons.music_note, size: 64, color: Colors.white24)
                     : null,
               ),
-              child: imageUrl == null
-                  ? const Icon(Icons.music_note, size: 64, color: Colors.white24)
-                  : null,
             ),
           ),
           const SizedBox(height: 8),
@@ -170,12 +186,13 @@ class _PlaylistCard extends StatelessWidget {
             playlist.title,
             style: const TextStyle(
               color: Colors.white,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
               fontSize: 14,
             ),
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
+          const SizedBox(height: 4),
           Text(
             '${playlist.leafCount} tracks',
             style: TextStyle(

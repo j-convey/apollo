@@ -230,6 +230,9 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
     );
     await _storageService.saveSelectedServers(selections);
     
+    // Build and save the server URL map for the selected servers
+    await _saveServerUrlMap();
+    
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -238,6 +241,25 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
         ),
       );
     }
+  }
+
+  /// Saves the mapping of server IDs to their best connection URLs.
+  Future<void> _saveServerUrlMap() async {
+    final Map<String, String> urlMap = {};
+    
+    for (var server in _servers) {
+      final machineIdentifier = server['clientIdentifier'] as String;
+      final connections = server['connections'] as List<dynamic>;
+      final serverUrl = _authService.getBestConnectionUrl(connections);
+      
+      if (serverUrl != null) {
+        urlMap[machineIdentifier] = serverUrl;
+        debugPrint('Saving server URL: $machineIdentifier -> $serverUrl');
+      }
+    }
+    
+    await _storageService.saveServerUrlMap(urlMap);
+    debugPrint('Saved ${urlMap.length} server URLs to storage');
   }
 
   Future<void> _signIn() async {
