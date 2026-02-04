@@ -39,7 +39,9 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
   @override
   void initState() {
     super.initState();
-    _loadCredentials();
+    _loadCredentials().then((_) {
+      // Credentials loaded, search is now ready
+    });
     _controller.addListener(_onSearchChanged);
     _focusNode.addListener(_onFocusChanged);
   }
@@ -54,7 +56,12 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
 
   Future<void> _loadCredentials() async {
     _token = await _storageService.getPlexToken();
-    _serverUrl = widget.currentServerUrl;
+    final serverUrl = await _storageService.getSelectedServerUrl(); // Use selected server URL
+    if (serverUrl != null) {
+      _serverUrl = serverUrl;
+    } else {
+      _serverUrl = widget.currentServerUrl; // Fallback to widget parameter
+    }
     _serverUrls = await _storageService.getServerUrlMap();
   }
 
@@ -196,7 +203,7 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
               child: artist['artistThumb'] != null
                   ? ClipOval(
                       child: Image.network(
-                        '${widget.currentServerUrl}${artist['artistThumb']}?X-Plex-Token=${widget.currentToken}',
+                        '${_serverUrl}${artist['artistThumb']}?X-Plex-Token=${_token}',
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return const Icon(Icons.person, color: Colors.grey);
@@ -263,7 +270,7 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(4),
                       child: Image.network(
-                        '${widget.currentServerUrl}${track['thumb']}?X-Plex-Token=${widget.currentToken}',
+                        '${widget.currentServerUrl ?? _serverUrl}${track['thumb']}?X-Plex-Token=${_token ?? widget.currentToken}',
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return const Icon(Icons.music_note, color: Colors.grey);
@@ -313,13 +320,13 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
     final serverUrl = serverId != null ? _serverUrls[serverId] : (widget.currentServerUrl ?? _serverUrl);
     
     if (widget.onNavigate != null && token != null && serverUrl != null) {
-      final artistId = artist['artistId'] as String?;
+      final ratingKey = artist['ratingKey'] as String?; // Use ratingKey for API calls
       final artistName = artist['artistName'] as String?;
-      if (artistId == null || artistName == null) return;
+      if (ratingKey == null || artistName == null) return;
       
       widget.onNavigate!(
         ArtistPage(
-          artistId: artistId,
+          artistId: ratingKey, // Pass ratingKey, not database ID
           artistName: artistName,
           serverUrl: serverUrl,
           token: token,

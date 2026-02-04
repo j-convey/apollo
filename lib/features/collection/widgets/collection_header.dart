@@ -47,25 +47,25 @@ class CollectionHeader extends StatelessWidget {
     switch (collectionType) {
       case CollectionType.library:
         return [
-          Colors.purple.shade800,
+          Colors.purple.shade700,
           Colors.purple.shade900,
           Colors.black,
         ];
       case CollectionType.playlist:
         return [
-          Colors.indigo.shade800,
+          Colors.indigo.shade700,
           Colors.indigo.shade900,
           Colors.black,
         ];
       case CollectionType.album:
         return [
-          Colors.teal.shade800,
+          Colors.teal.shade700,
           Colors.teal.shade900,
           Colors.black,
         ];
       case CollectionType.artist:
         return [
-          Colors.orange.shade800,
+          Colors.orange.shade700,
           Colors.orange.shade900,
           Colors.black,
         ];
@@ -208,9 +208,10 @@ class CollectionHeader extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
           colors: gradientColors ?? _defaultGradientColors,
+          stops: const [0.0, 0.6, 1.0],
         ),
       ),
       child: Row(

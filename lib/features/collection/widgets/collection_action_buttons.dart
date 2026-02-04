@@ -54,9 +54,11 @@ class CollectionActionButtons extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
+            Colors.black.withValues(alpha: 0.0),
             Colors.black.withValues(alpha: 0.3),
             Colors.black,
           ],
+          stops: const [0.0, 0.5, 1.0],
         ),
       ),
       child: Row(

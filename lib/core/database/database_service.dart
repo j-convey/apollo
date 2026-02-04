@@ -115,9 +115,12 @@ class DatabaseService {
   Map<String, dynamic> mapArtistFromDb(Map<String, dynamic> map) {
     return {
       'id': map['id'] as int?,
+      'artistId': map['id'].toString(), // Also provide as string for UI
       'ratingKey': map['rating_key'] as String?,
       'title': map['title'] as String,
+      'artistName': map['title'] as String, // Alias for UI
       'thumb': map['thumb'] as String?,
+      'artistThumb': map['thumb'] as String?, // Alias for UI
       'art': map['art'] as String?,
       'summary': map['summary'] as String?,
       'genre': map['genre'] as String?,
