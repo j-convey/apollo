@@ -2,17 +2,20 @@ import 'package:flutter/material.dart';
 import '../../../core/database/database_service.dart';
 import '../../services/audio_player_service.dart';
 import '../../services/storage_service.dart';
+import '../../../features/artist/artist_page.dart';
 
 class AppBarSearchBar extends StatefulWidget {
   final AudioPlayerService? audioPlayerService;
   final String? currentToken;
   final String? currentServerUrl;
+  final void Function(Widget)? onNavigate;
 
   const AppBarSearchBar({
     super.key,
     this.audioPlayerService,
     this.currentToken,
     this.currentServerUrl,
+    this.onNavigate,
   });
 
   @override
@@ -26,10 +29,12 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
   final StorageService _storageService = StorageService();
   final LayerLink _layerLink = LayerLink();
   
-  List<Map<String, dynamic>> _searchResults = [];
+  List<Map<String, dynamic>> _trackResults = [];
+  List<Map<String, dynamic>> _artistResults = [];
   OverlayEntry? _overlayEntry;
   String? _token;
   String? _serverUrl;
+  Map<String, String> _serverUrls = {};
 
   @override
   void initState() {
@@ -50,13 +55,15 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
   Future<void> _loadCredentials() async {
     _token = await _storageService.getPlexToken();
     _serverUrl = widget.currentServerUrl;
+    _serverUrls = await _storageService.getServerUrlMap();
   }
 
   void _onSearchChanged() {
     final query = _controller.text;
     if (query.isEmpty) {
       setState(() {
-        _searchResults = [];
+        _trackResults = [];
+        _artistResults = [];
       });
       _removeOverlay();
       return;
@@ -66,12 +73,15 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
   }
 
   Future<void> _performSearch(String query) async {
-    final results = await _dbService.searchTracks(query);
+    final trackResults = await _dbService.searchTracks(query);
+    final artistResults = await _dbService.searchArtists(query);
+    
     if (mounted) {
       setState(() {
-        _searchResults = results;
+        _trackResults = trackResults;
+        _artistResults = artistResults;
       });
-      if (results.isNotEmpty && _focusNode.hasFocus) {
+      if ((trackResults.isNotEmpty || artistResults.isNotEmpty) && _focusNode.hasFocus) {
         _showOverlay();
       } else {
         _removeOverlay();
@@ -80,7 +90,7 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
   }
 
   void _onFocusChanged() {
-    if (_focusNode.hasFocus && _searchResults.isNotEmpty) {
+    if (_focusNode.hasFocus && (_trackResults.isNotEmpty || _artistResults.isNotEmpty)) {
       _showOverlay();
     } else if (!_focusNode.hasFocus) {
       // Delay removal to allow clicking on results
@@ -120,14 +130,42 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
             color: const Color(0xFF282828),
             child: Container(
               constraints: const BoxConstraints(maxHeight: 400),
-              child: ListView.builder(
+              child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 shrinkWrap: true,
-                itemCount: _searchResults.length,
-                itemBuilder: (context, index) {
-                  final track = _searchResults[index];
-                  return _buildSearchResultItem(track);
-                },
+                children: [
+                  // Artists section
+                  if (_artistResults.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      child: Text(
+                        'Artists',
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    ..._artistResults.map((artist) => _buildArtistResultItem(artist)),
+                    const SizedBox(height: 8),
+                  ],
+                  // Tracks section
+                  if (_trackResults.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      child: Text(
+                        'Songs',
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    ..._trackResults.map((track) => _buildTrackResultItem(track)),
+                  ],
+                ],
               ),
             ),
           ),
@@ -136,7 +174,73 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
     );
   }
 
-  Widget _buildSearchResultItem(Map<String, dynamic> track) {
+  Widget _buildArtistResultItem(Map<String, dynamic> artist) {
+    return InkWell(
+      onTap: () {
+        _navigateToArtist(artist);
+        _controller.clear();
+        _focusNode.unfocus();
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            // Artist image
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.grey[800],
+                shape: BoxShape.circle,
+              ),
+              child: artist['artistThumb'] != null
+                  ? ClipOval(
+                      child: Image.network(
+                        '${widget.currentServerUrl}${artist['artistThumb']}?X-Plex-Token=${widget.currentToken}',
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(Icons.person, color: Colors.grey);
+                        },
+                      ),
+                    )
+                  : const Icon(Icons.person, color: Colors.grey),
+            ),
+            const SizedBox(width: 12),
+            // Artist info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    artist['artistName'] as String,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  Text(
+                    'Artist',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrackResultItem(Map<String, dynamic> track) {
     return InkWell(
       onTap: () {
         _playTrack(track);
@@ -203,9 +307,32 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
     );
   }
 
+  void _navigateToArtist(Map<String, dynamic> artist) {
+    final token = _token ?? widget.currentToken;
+    final serverId = artist['serverId'] as String?;
+    final serverUrl = serverId != null ? _serverUrls[serverId] : (widget.currentServerUrl ?? _serverUrl);
+    
+    if (widget.onNavigate != null && token != null && serverUrl != null) {
+      final artistId = artist['artistId'] as String;
+      final artistName = artist['artistName'] as String;
+      
+      widget.onNavigate!(
+        ArtistPage(
+          artistId: artistId,
+          artistName: artistName,
+          serverUrl: serverUrl,
+          token: token,
+          audioPlayerService: widget.audioPlayerService,
+          onNavigate: widget.onNavigate,
+        ),
+      );
+    }
+  }
+
   void _playTrack(Map<String, dynamic> track) async {
     final token = _token ?? widget.currentToken;
-    final serverUrl = _serverUrl ?? widget.currentServerUrl;
+    final serverId = track['serverId'] as String?;
+    final serverUrl = serverId != null ? _serverUrls[serverId] : (widget.currentServerUrl ?? _serverUrl);
     
     if (widget.audioPlayerService != null && token != null && serverUrl != null) {
       // Get all tracks for queue context

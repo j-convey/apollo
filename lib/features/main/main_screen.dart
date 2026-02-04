@@ -111,6 +111,7 @@ class _MainScreenState extends State<MainScreen> {
             audioPlayerService: _audioPlayerService,
             currentToken: _currentToken,
             currentServerUrl: _currentServerUrl,
+            onNavigate: _navigateToPage,
             onBackPressed: _goBack,
             onForwardPressed: _goForward,
             canGoBack: _currentHistoryIndex > 0,

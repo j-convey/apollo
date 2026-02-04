@@ -181,6 +181,31 @@ extension TracksExtension on DatabaseService {
     return maps.map((map) => _mapTrackFromDb(map)).toList();
   }
 
+  // Search for unique artists by name
+  Future<List<Map<String, dynamic>>> searchArtists(String query) async {
+    if (query.trim().isEmpty) return [];
+    
+    final db = await database;
+    final searchQuery = '%${query.toLowerCase()}%';
+    
+    // Get unique artists matching the search query
+    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+      SELECT DISTINCT
+        grandparent_rating_key as artistId,
+        grandparent_title as artistName,
+        grandparent_thumb as artistThumb,
+        server_id as serverId
+      FROM tracks
+      WHERE LOWER(grandparent_title) LIKE ?
+        AND grandparent_rating_key IS NOT NULL
+        AND grandparent_title IS NOT NULL
+      ORDER BY grandparent_title ASC
+      LIMIT 10
+    ''', [searchQuery]);
+
+    return maps;
+  }
+
   // Get liked tracks (user_rating >= 10.0)
   Future<List<Map<String, dynamic>>> getLikedTracks() async {
     final db = await database;

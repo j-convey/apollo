@@ -23,6 +23,7 @@ class ApolloAppBar extends StatelessWidget implements PreferredSizeWidget {
   final AudioPlayerService? audioPlayerService;
   final String? currentToken;
   final String? currentServerUrl;
+  final void Function(Widget)? onNavigate;
   
   const ApolloAppBar({
     super.key,
@@ -42,6 +43,7 @@ class ApolloAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.audioPlayerService,
     this.currentToken,
     this.currentServerUrl,
+    this.onNavigate,
   });
 
   @override
@@ -106,6 +108,7 @@ class ApolloAppBar extends StatelessWidget implements PreferredSizeWidget {
                       audioPlayerService: audioPlayerService,
                       currentToken: currentToken,
                       currentServerUrl: currentServerUrl,
+                      onNavigate: onNavigate,
                     ),
                   ),
                 ],
