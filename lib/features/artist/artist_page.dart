@@ -42,6 +42,14 @@ class _ArtistPageState extends State<ArtistPage> {
     _loadArtistData();
   }
 
+  @override
+  void didUpdateWidget(ArtistPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.artistId != oldWidget.artistId) {
+      _loadArtistData();
+    }
+  }
+
   Future<void> _loadArtistData() async {
     setState(() => _isLoading = true);
 
