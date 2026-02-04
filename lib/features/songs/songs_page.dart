@@ -5,7 +5,9 @@ import '../../core/services/audio_player_service.dart';
 import '../../../core/database/database_service.dart';
 import 'widgets/songs_header.dart';
 import 'widgets/songs_action_buttons.dart';
-import 'widgets/songs_table_header.dart';
+import 'widgets/songs_sticky_header_delegate.dart';
+import 'widgets/songs_sticky_header_content.dart';
+import 'widgets/songs_scrollbar.dart';
 import 'widgets/track_list_item.dart';
 import 'utils/songs_utils.dart';
 
@@ -22,6 +24,7 @@ class _SongsPageState extends State<SongsPage> {
   final PlexServerService _serverService = PlexServerService();
   final StorageService _storageService = StorageService();
   final DatabaseService _dbService = DatabaseService();
+  final ScrollController _scrollController = ScrollController();
   
   List<Map<String, dynamic>> _tracks = [];
   bool _isLoading = true;
@@ -30,6 +33,12 @@ class _SongsPageState extends State<SongsPage> {
   String? _currentToken;
   String? _currentServerUrl;
   Map<String, String> _serverUrls = {};
+  bool _showStickyPlayButton = false;
+  
+  // Height of header + action buttons before the sticky header
+  static const double _headerHeight = 280; // SongsHeader
+  static const double _actionButtonsHeight = 104; // SongsActionButtons
+  static const double _scrollThreshold = _headerHeight + _actionButtonsHeight;
   
   // Sorting state
   String _sortColumn = 'addedAt';
@@ -38,7 +47,32 @@ class _SongsPageState extends State<SongsPage> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _loadTracks();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    // Only update state when crossing the threshold to minimize rebuilds
+    final offset = _scrollController.offset;
+    final shouldShow = offset > _scrollThreshold;
+    
+    if (shouldShow != _showStickyPlayButton) {
+      // Schedule state update for next frame to batch multiple scroll events
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && shouldShow != _showStickyPlayButton) {
+          setState(() {
+            _showStickyPlayButton = shouldShow;
+          });
+        }
+      });
+    }
   }
 
   Future<void> _loadTracks() async {
@@ -185,11 +219,14 @@ class _SongsPageState extends State<SongsPage> {
       );
     }
 
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SongsHeader(trackCount: _tracks.length),
-        ),
+    return SongsScrollbar(
+      scrollController: _scrollController,
+      child: CustomScrollView(
+        controller: _scrollController,
+        slivers: [
+          SliverToBoxAdapter(
+            child: SongsHeader(trackCount: _tracks.length),
+          ),
         SliverToBoxAdapter(
           child: SongsActionButtons(
             tracks: _tracks,
@@ -199,11 +236,23 @@ class _SongsPageState extends State<SongsPage> {
             currentServerUrl: _currentServerUrl,
           ),
         ),
-        SliverToBoxAdapter(
-          child: SongsTableHeader(
-            sortColumn: _sortColumn,
-            sortAscending: _sortAscending,
-            onSort: _sortTracks,
+        // Sticky header with play button and column headers
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: SongsStickyHeaderDelegate(
+            minHeight: 104,
+            maxHeight: 104,
+            child: SongsStickyHeaderContent(
+              sortColumn: _sortColumn,
+              sortAscending: _sortAscending,
+              onSort: _sortTracks,
+              tracks: _tracks,
+              audioPlayerService: widget.audioPlayerService,
+              currentToken: _currentToken,
+              serverUrls: _serverUrls,
+              currentServerUrl: _currentServerUrl,
+              showPlayButton: _showStickyPlayButton,
+            ),
           ),
         ),
         SliverList(
@@ -229,6 +278,7 @@ class _SongsPageState extends State<SongsPage> {
           ),
         ),
       ],
+      ),
     );
   }
 }
