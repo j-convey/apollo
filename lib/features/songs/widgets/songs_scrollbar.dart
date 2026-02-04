@@ -17,8 +17,8 @@ class SongsScrollbar extends StatelessWidget {
     return ScrollbarTheme(
       data: ScrollbarThemeData(
         thickness: WidgetStateProperty.all(8.0),
-        thumbColor: WidgetStateProperty.all(Colors.white.withOpacity(0.3)),
-        trackColor: WidgetStateProperty.all(Colors.white.withOpacity(0.1)),
+        thumbColor: WidgetStateProperty.all(Colors.white.withValues(alpha: 0.3)),
+        trackColor: WidgetStateProperty.all(Colors.white.withValues(alpha: 0.1)),
         trackBorderColor: WidgetStateProperty.all(Colors.transparent),
         radius: const Radius.circular(4),
       ),

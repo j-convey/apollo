@@ -213,7 +213,7 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    artist['artistName'] as String,
+                    artist['artistName'] as String? ?? 'Unknown Artist',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -280,7 +280,7 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    track['title'] as String,
+                    track['title'] as String? ?? 'Unknown Song',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -313,8 +313,9 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
     final serverUrl = serverId != null ? _serverUrls[serverId] : (widget.currentServerUrl ?? _serverUrl);
     
     if (widget.onNavigate != null && token != null && serverUrl != null) {
-      final artistId = artist['artistId'] as String;
-      final artistName = artist['artistName'] as String;
+      final artistId = artist['artistId'] as String?;
+      final artistName = artist['artistName'] as String?;
+      if (artistId == null || artistName == null) return;
       
       widget.onNavigate!(
         ArtistPage(
