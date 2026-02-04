@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../core/models/playlists.dart';
 import '../../core/services/storage_service.dart';
+import '../../core/services/audio_player_service.dart';
+import '../collection/collection_page.dart';
+import '../collection/widgets/collection_header.dart';
 import 'playlist_service.dart';
 
 class PlaylistsPage extends StatefulWidget {
   final Function(Widget) onNavigate;
+  final AudioPlayerService? audioPlayerService;
 
   const PlaylistsPage({
     super.key,
     required this.onNavigate,
+    this.audioPlayerService,
   });
 
   @override
@@ -123,16 +128,143 @@ class _PlaylistsPageState extends State<PlaylistsPage> {
         ),
         itemCount: _playlists.length,
         itemBuilder: (context, index) {
+          final playlist = _playlists[index];
           return _PlaylistCard(
-            playlist: _playlists[index],
+            playlist: playlist,
             serverUrl: _serverUrl ?? '',
             token: _token ?? '',
-            onTap: () {
-              // TODO: Navigate to playlist details
-            },
+            onTap: () => _navigateToPlaylist(playlist),
           );
         },
       ),
+    );
+  }
+
+  void _navigateToPlaylist(Playlist playlist) {
+    final imageUrl = playlist.composite != null
+        ? '$_serverUrl${playlist.composite}?X-Plex-Token=$_token'
+        : null;
+
+    widget.onNavigate(
+      _PlaylistDetailPage(
+        playlist: playlist,
+        serverUrl: _serverUrl!,
+        token: _token!,
+        imageUrl: imageUrl,
+        audioPlayerService: widget.audioPlayerService,
+        playlistService: _playlistService,
+      ),
+    );
+  }
+}
+
+/// Wrapper page that loads playlist tracks and displays CollectionPage
+class _PlaylistDetailPage extends StatefulWidget {
+  final Playlist playlist;
+  final String serverUrl;
+  final String token;
+  final String? imageUrl;
+  final AudioPlayerService? audioPlayerService;
+  final PlaylistService playlistService;
+
+  const _PlaylistDetailPage({
+    required this.playlist,
+    required this.serverUrl,
+    required this.token,
+    this.imageUrl,
+    this.audioPlayerService,
+    required this.playlistService,
+  });
+
+  @override
+  State<_PlaylistDetailPage> createState() => _PlaylistDetailPageState();
+}
+
+class _PlaylistDetailPageState extends State<_PlaylistDetailPage> {
+  List<Map<String, dynamic>>? _tracks;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPlaylistTracks();
+  }
+
+  Future<void> _loadPlaylistTracks() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final tracks = await widget.playlistService.getPlaylistTracks(
+        widget.serverUrl,
+        widget.token,
+        widget.playlist.id,
+      );
+
+      if (mounted) {
+        setState(() {
+          _tracks = tracks;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Error loading playlist: $e';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF121212),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF121212),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              Text(
+                _error!,
+                style: const TextStyle(color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadPlaylistTracks,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return CollectionPage(
+      title: widget.playlist.title,
+      subtitle: '${widget.playlist.leafCount} songs',
+      collectionType: CollectionType.playlist,
+      audioPlayerService: widget.audioPlayerService,
+      tracks: _tracks,
+      imageUrl: widget.imageUrl,
+      currentToken: widget.token,
+      serverUrls: {}, // Playlist tracks don't need server mapping
+      currentServerUrl: widget.serverUrl,
+      emptyMessage: 'This playlist is empty.',
     );
   }
 }

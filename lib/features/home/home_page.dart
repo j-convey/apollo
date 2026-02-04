@@ -62,6 +62,7 @@ class HomePage extends StatelessWidget {
                       if (onNavigate != null) {
                         onNavigate!(PlaylistsPage(
                           onNavigate: onNavigate!,
+                          audioPlayerService: audioPlayerService,
                         ));
                       }
                     },
