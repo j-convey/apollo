@@ -24,9 +24,12 @@ A modern, cross-platform music player built with Flutter that seamlessly integra
 - **Responsive Design**: Optimized for desktop screens with proper scaling
 - **Album Art Display**: High-quality album artwork integration
 - **Progress Visualization**: Real-time playback progress with seek controls
+<img width="1920" height="1536" alt="image" src="https://github.com/user-attachments/assets/62b1ccfc-8894-4faa-b84a-fa7411357378" />
 
 ### 🔍 Discovery & Navigation
 - **Library Browser**: Browse your entire music collection by artist, album, or track
+  <img width="1920" height="1468" alt="image" src="https://github.com/user-attachments/assets/3bd08996-6b56-4916-b6e1-633c9840a0d5" />
+
 - **Search Functionality**: Fast, real-time search across your music library
 - **Recently Played**: Quick access to recently played tracks
 - **Playlists**: Create and manage custom playlists (coming soon)
