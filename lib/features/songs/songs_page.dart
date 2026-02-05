@@ -3,6 +3,7 @@ import '../../core/services/plex/plex_services.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/services/audio_player_service.dart';
 import '../../../core/database/database_service.dart';
+import '../../core/models/track.dart';
 import '../collection/collection_page.dart';
 import '../collection/widgets/collection_header.dart';
 
@@ -58,7 +59,10 @@ class _SongsPageState extends State<SongsPage> {
     try {
       debugPrint('[SONGS] Querying database...');
       final dbStartTime = DateTime.now();
-      final cachedTracks = await _dbService.getAllTracks();
+      // Use new type-safe repository pattern
+      final trackModels = await _dbService.tracks.getAll();
+      // Convert to maps for UI compatibility
+      final cachedTracks = trackModels.map((t) => t.toJson()).toList();
       final dbEndTime = DateTime.now();
       debugPrint('[SONGS] Database query took: ${dbEndTime.difference(dbStartTime).inMilliseconds}ms');
       debugPrint('[SONGS] Retrieved ${cachedTracks.length} tracks from database');

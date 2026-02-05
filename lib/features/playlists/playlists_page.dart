@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/models/playlists.dart';
+import '../../core/models/playlist.dart';
 import '../../core/services/storage_service.dart';
 import '../../core/services/audio_player_service.dart';
 import '../collection/collection_page.dart';

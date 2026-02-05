@@ -91,9 +91,10 @@ class AlbumPage extends StatelessWidget {
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () {
-                      (context as Element).reassemble();
+                      // Force rebuild by navigating back and forth
+                      Navigator.of(context).pop();
                     },
-                    child: const Text('Retry'),
+                    child: const Text('Go Back'),
                   ),
                 ],
               ),

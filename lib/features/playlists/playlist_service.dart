@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import '../../core/models/playlists.dart';
+import '../../core/models/playlist.dart';
 import '../../core/database/database_service.dart';
 
 /// Service for managing playlists.
@@ -107,13 +107,13 @@ class PlaylistService {
 
   /// Retrieves playlists from the local database.
   Future<List<Playlist>> getLocalPlaylists() async {
-    final maps = await _dbService.getAllPlaylists();
-    return maps.map((map) => Playlist.fromMap(map)).toList();
+    return _dbService.playlists.getAll();
   }
 
   /// Saves playlists to the local database.
   Future<void> _savePlaylistsToDb(List<Playlist> playlists, String serverId) async {
-    final playlistMaps = playlists.map((p) => p.toMap()).toList();
-    await _dbService.savePlaylists(playlistMaps, serverId);
+    // Set the serverId on each playlist
+    final playlistsWithServer = playlists.map((p) => p.copyWith(serverId: serverId)).toList();
+    await _dbService.playlists.saveAll(playlistsWithServer);
   }
 }
