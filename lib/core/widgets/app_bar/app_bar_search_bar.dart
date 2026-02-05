@@ -28,7 +28,7 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
   final DatabaseService _dbService = DatabaseService();
   final StorageService _storageService = StorageService();
   final LayerLink _layerLink = LayerLink();
-  
+
   List<Map<String, dynamic>> _trackResults = [];
   List<Map<String, dynamic>> _artistResults = [];
   OverlayEntry? _overlayEntry;
@@ -56,13 +56,20 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
 
   Future<void> _loadCredentials() async {
     _token = await _storageService.getPlexToken();
-    final serverUrl = await _storageService.getSelectedServerUrl(); // Use selected server URL
+    final serverUrl = await _storageService
+        .getSelectedServerUrl(); // Use selected server URL
     if (serverUrl != null) {
       _serverUrl = serverUrl;
     } else {
       _serverUrl = widget.currentServerUrl; // Fallback to widget parameter
     }
-    _serverUrls = await _storageService.getServerUrlMap();
+    // Build single-server URL map for compatibility
+    final serverId = await _storageService.getSelectedServer();
+    if (serverId != null && serverUrl != null) {
+      _serverUrls = {serverId: serverUrl};
+    } else {
+      _serverUrls = {};
+    }
   }
 
   void _onSearchChanged() {
@@ -82,13 +89,14 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
   Future<void> _performSearch(String query) async {
     final trackResults = await _dbService.searchTracks(query);
     final artistResults = await _dbService.searchArtists(query);
-    
+
     if (mounted) {
       setState(() {
         _trackResults = trackResults;
         _artistResults = artistResults;
       });
-      if ((trackResults.isNotEmpty || artistResults.isNotEmpty) && _focusNode.hasFocus) {
+      if ((trackResults.isNotEmpty || artistResults.isNotEmpty) &&
+          _focusNode.hasFocus) {
         _showOverlay();
       } else {
         _removeOverlay();
@@ -97,7 +105,8 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
   }
 
   void _onFocusChanged() {
-    if (_focusNode.hasFocus && (_trackResults.isNotEmpty || _artistResults.isNotEmpty)) {
+    if (_focusNode.hasFocus &&
+        (_trackResults.isNotEmpty || _artistResults.isNotEmpty)) {
       _showOverlay();
     } else if (!_focusNode.hasFocus) {
       // Delay removal to allow clicking on results
@@ -144,7 +153,10 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
                   // Artists section
                   if (_artistResults.isNotEmpty) ...[
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
                       child: Text(
                         'Artists',
                         style: TextStyle(
@@ -154,13 +166,18 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
                         ),
                       ),
                     ),
-                    ..._artistResults.map((artist) => _buildArtistResultItem(artist)),
+                    ..._artistResults.map(
+                      (artist) => _buildArtistResultItem(artist),
+                    ),
                     const SizedBox(height: 8),
                   ],
                   // Tracks section
                   if (_trackResults.isNotEmpty) ...[
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
                       child: Text(
                         'Songs',
                         style: TextStyle(
@@ -170,7 +187,9 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
                         ),
                       ),
                     ),
-                    ..._trackResults.map((track) => _buildTrackResultItem(track)),
+                    ..._trackResults.map(
+                      (track) => _buildTrackResultItem(track),
+                    ),
                   ],
                 ],
               ),
@@ -182,6 +201,13 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
   }
 
   Widget _buildArtistResultItem(Map<String, dynamic> artist) {
+    // Get the server URL for this artist
+    // Try to get from serverId first, but always fall back to current server
+    final serverId = artist['serverId'] as String?;
+    final serverUrl =
+        (serverId != null ? _serverUrls[serverId] : null) ?? _serverUrl;
+    final token = _token ?? widget.currentToken;
+
     return InkWell(
       onTap: () {
         _navigateToArtist(artist);
@@ -200,10 +226,11 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
                 color: Colors.grey[800],
                 shape: BoxShape.circle,
               ),
-              child: artist['thumb'] != null
+              child:
+                  artist['thumb'] != null && serverUrl != null && token != null
                   ? ClipOval(
                       child: Image.network(
-                        '$_serverUrl${artist['thumb']}?X-Plex-Token=$_token',
+                        '$serverUrl${artist['thumb']}?X-Plex-Token=$token',
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return const Icon(Icons.person, color: Colors.grey);
@@ -233,10 +260,7 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
                     'Artist',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
                   ),
                 ],
               ),
@@ -248,6 +272,15 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
   }
 
   Widget _buildTrackResultItem(Map<String, dynamic> track) {
+    // Get the server URL for this track
+    // Try to get from serverId first, but always fall back to current server
+    final serverId = track['serverId'] as String?;
+    final serverUrl =
+        (serverId != null ? _serverUrls[serverId] : null) ??
+        _serverUrl ??
+        widget.currentServerUrl;
+    final token = _token ?? widget.currentToken;
+
     return InkWell(
       onTap: () {
         _playTrack(track);
@@ -266,14 +299,21 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
                 color: Colors.grey[800],
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: track['thumb'] != null && track['thumb'].toString().isNotEmpty
+              child:
+                  track['thumb'] != null &&
+                      track['thumb'].toString().isNotEmpty &&
+                      serverUrl != null &&
+                      token != null
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(4),
                       child: Image.network(
-                        '${widget.currentServerUrl ?? _serverUrl}${track['thumb']}?X-Plex-Token=${_token ?? widget.currentToken}',
+                        '$serverUrl${track['thumb']}?X-Plex-Token=$token',
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
-                          return const Icon(Icons.music_note, color: Colors.grey);
+                          return const Icon(
+                            Icons.music_note,
+                            color: Colors.grey,
+                          );
                         },
                       ),
                     )
@@ -300,10 +340,7 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
                     '${track['artist']} • ${track['album']}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
                   ),
                 ],
               ),
@@ -317,13 +354,19 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
   void _navigateToArtist(Map<String, dynamic> artist) {
     final token = _token ?? widget.currentToken;
     final serverId = artist['serverId'] as String?;
-    final serverUrl = serverId != null ? _serverUrls[serverId] : (widget.currentServerUrl ?? _serverUrl);
-    
+    // Always fall back to current server URL
+    final serverUrl =
+        (serverId != null ? _serverUrls[serverId] : null) ??
+        _serverUrl ??
+        widget.currentServerUrl;
+
     if (widget.onNavigate != null && token != null && serverUrl != null) {
-      final ratingKey = artist['ratingKey'] as String?; // Use ratingKey for API calls
-      final artistName = artist['name'] as String?; // Changed from 'artistName' to 'name'
+      final ratingKey =
+          artist['ratingKey'] as String?; // Use ratingKey for API calls
+      final artistName =
+          artist['name'] as String?; // Changed from 'artistName' to 'name'
       if (ratingKey == null || artistName == null) return;
-      
+
       widget.onNavigate!(
         ArtistPage(
           artistId: ratingKey, // Pass ratingKey, not database ID
@@ -340,14 +383,23 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
   void _playTrack(Map<String, dynamic> track) async {
     final token = _token ?? widget.currentToken;
     final serverId = track['serverId'] as String?;
-    final serverUrl = serverId != null ? _serverUrls[serverId] : (widget.currentServerUrl ?? _serverUrl);
-    
-    if (widget.audioPlayerService != null && token != null && serverUrl != null) {
+    // Always fall back to current server URL
+    final serverUrl =
+        (serverId != null ? _serverUrls[serverId] : null) ??
+        _serverUrl ??
+        widget.currentServerUrl;
+
+    if (widget.audioPlayerService != null &&
+        token != null &&
+        serverUrl != null) {
       // Get all tracks for queue context
       final allTracks = await _dbService.getAllTracks();
       final trackIndex = allTracks.indexWhere((t) => t['key'] == track['key']);
-      
-      widget.audioPlayerService!.setPlayQueue(allTracks, trackIndex >= 0 ? trackIndex : 0);
+
+      widget.audioPlayerService!.setPlayQueue(
+        allTracks,
+        trackIndex >= 0 ? trackIndex : 0,
+      );
       widget.audioPlayerService!.playTrack(track, token, serverUrl);
     }
   }
@@ -367,11 +419,7 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
         child: Row(
           children: [
             const SizedBox(width: 12),
-            Icon(
-              Icons.search,
-              color: Colors.grey[400],
-              size: 24,
-            ),
+            Icon(Icons.search, color: Colors.grey[400], size: 24),
             const SizedBox(width: 12),
             Expanded(
               child: TextField(

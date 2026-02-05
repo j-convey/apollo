@@ -230,8 +230,9 @@ class DatabaseService {
   Future<void> saveTracks(
     String serverId,
     String libraryKey,
-    List<Map<String, dynamic>> trackMaps,
-  ) async {
+    List<Map<String, dynamic>> trackMaps, {
+    void Function(int current, int total)? onProgress,
+  }) async {
     // Convert maps to Track models
     final trackModels = trackMaps.map((map) {
       return Track.fromPlexJson(
@@ -240,7 +241,7 @@ class DatabaseService {
         libraryKey: libraryKey,
       );
     }).toList();
-    await tracks.saveAll(serverId, libraryKey, trackModels);
+    await tracks.saveAll(serverId, libraryKey, trackModels, onProgress: onProgress);
   }
 
   @Deprecated('Use db.tracks.search(query) instead')

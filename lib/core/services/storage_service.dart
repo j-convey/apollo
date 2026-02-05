@@ -4,10 +4,14 @@ import 'dart:convert';
 class StorageService {
   static const String _plexTokenKey = 'plex_token';
   static const String _usernameKey = 'plex_username';
-  static const String _selectedServersKey = 'selected_servers';
+  static const String _selectedServersKey =
+      'selected_servers'; // Legacy - kept for migration
   static const String _profileImagePathKey = 'profile_image_path';
-  static const String _serverUrlKey = 'server_url';
-  static const String _serverUrlMapKey = 'server_url_map';
+  static const String _serverUrlKey = 'server_url'; // Legacy
+  static const String _serverUrlMapKey = 'server_url_map'; // Legacy
+  static const String _selectedServerKey = 'selected_server_id';
+  static const String _selectedLibraryKey = 'selected_library_key';
+  static const String _selectedServerUrlKey = 'selected_server_url';
 
   // Save Plex token
   Future<void> savePlexToken(String token) async {
@@ -74,39 +78,67 @@ class StorageService {
     return {};
   }
 
-  // Get the URL for a specific server by machine identifier
+  // Get the URL for a specific server by machine identifier (legacy)
   Future<String?> getServerUrlById(String machineIdentifier) async {
     final urlMap = await getServerUrlMap();
     return urlMap[machineIdentifier];
   }
 
-  // Get the URL for the server that has selected libraries
-  Future<String?> getSelectedServerUrl() async {
-    final selectedServers = await getSelectedServers();
-    final urlMap = await getServerUrlMap();
+  // ==================== NEW SINGLE SELECTION METHODS ====================
 
-    // Find the first server with selected libraries
-    for (var entry in selectedServers.entries) {
-      if (entry.value.isNotEmpty && urlMap.containsKey(entry.key)) {
-        return urlMap[entry.key];
-      }
-    }
-    return null;
+  // Save selected server ID (single selection)
+  Future<void> saveSelectedServer(String serverId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_selectedServerKey, serverId);
   }
 
-  // Save selected servers and libraries
+  // Get selected server ID (single selection)
+  Future<String?> getSelectedServer() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_selectedServerKey);
+  }
+
+  // Save selected library key (single selection)
+  Future<void> saveSelectedLibrary(String libraryKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_selectedLibraryKey, libraryKey);
+  }
+
+  // Get selected library key (single selection)
+  Future<String?> getSelectedLibrary() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_selectedLibraryKey);
+  }
+
+  // Save the selected server's URL (only set when user explicitly saves)
+  Future<void> saveSelectedServerUrl(String url) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_selectedServerUrlKey, url);
+  }
+
+  // Get the URL for the selected server (returns null if not yet saved)
+  Future<String?> getSelectedServerUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_selectedServerUrlKey);
+  }
+
+  // ==================== LEGACY METHODS (kept for backward compatibility) ====================
+
+  // Save selected servers and libraries (legacy - multi-select)
   Future<void> saveSelectedServers(Map<String, List<String>> selections) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_selectedServersKey, json.encode(selections));
   }
 
-  // Get selected servers and libraries
+  // Get selected servers and libraries (legacy - multi-select)
   Future<Map<String, List<String>>> getSelectedServers() async {
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getString(_selectedServersKey);
     if (data != null) {
       final Map<String, dynamic> decoded = json.decode(data);
-      return decoded.map((key, value) => MapEntry(key, List<String>.from(value)));
+      return decoded.map(
+        (key, value) => MapEntry(key, List<String>.from(value)),
+      );
     }
     return {};
   }
@@ -118,5 +150,8 @@ class StorageService {
     await prefs.remove(_usernameKey);
     await prefs.remove(_selectedServersKey);
     await prefs.remove(_serverUrlMapKey);
+    await prefs.remove(_selectedServerKey);
+    await prefs.remove(_selectedLibraryKey);
+    await prefs.remove(_selectedServerUrlKey);
   }
 }

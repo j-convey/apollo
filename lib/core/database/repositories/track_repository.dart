@@ -120,11 +120,15 @@ class TrackRepository extends BaseRepository {
   // ============================================================
 
   /// Save tracks with automatic artist/album extraction
+  /// Progress callback reports (current, total) as tracks are saved
   Future<void> saveAll(
     String serverId,
     String libraryKey,
-    List<Track> tracks,
-  ) async {
+    List<Track> tracks, {
+    void Function(int current, int total)? onProgress,
+  }) async {
+    final db = await getDatabase();
+    
     // Delete existing tracks for this library
     await delete(
       'tracks',
@@ -132,62 +136,88 @@ class TrackRepository extends BaseRepository {
       whereArgs: [serverId, libraryKey],
     );
 
-    for (final track in tracks) {
-      int? artistId;
-      int? albumId;
+    debugPrint('DATABASE: Starting batch save of ${tracks.length} tracks...');
+    final stopwatch = Stopwatch()..start();
 
-      // Upsert artist
-      if (track.artistRatingKey != null && track.artistName.isNotEmpty) {
-        final artist = Artist(
-          ratingKey: track.artistRatingKey!,
-          name: track.artistName,
-          thumb: track.artistThumb,
-          serverId: serverId,
-          addedAt: track.addedAt,
-        );
-        
-        await insert('artists', artist.toDb(), conflictAlgorithm: ConflictAlgorithm.ignore);
-        
-        final artistResult = await query(
-          'artists',
-          where: 'rating_key = ?',
-          whereArgs: [track.artistRatingKey],
-          limit: 1,
-        );
-        artistId = artistResult.isNotEmpty ? artistResult.first['id'] as int? : null;
-      }
+    // Use batching for MUCH better performance
+    await db.transaction((txn) async {
+      // Batch size for progress updates
+      const batchSize = 100;
+      
+      for (int i = 0; i < tracks.length; i++) {
+        final track = tracks[i];
+        int? artistId;
+        int? albumId;
 
-      // Upsert album
-      if (track.albumRatingKey != null && track.albumName.isNotEmpty) {
-        final album = Album(
-          ratingKey: track.albumRatingKey!,
-          title: track.albumName,
+        // Upsert artist
+        if (track.artistRatingKey != null && track.artistName.isNotEmpty) {
+          final artist = Artist(
+            ratingKey: track.artistRatingKey!,
+            name: track.artistName,
+            thumb: track.artistThumb,
+            serverId: serverId,
+            addedAt: track.addedAt,
+          );
+          
+          await txn.insert(
+            'artists',
+            artist.toDb(),
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
+          
+          final artistResult = await txn.query(
+            'artists',
+            where: 'rating_key = ?',
+            whereArgs: [track.artistRatingKey],
+            limit: 1,
+          );
+          artistId = artistResult.isNotEmpty ? artistResult.first['id'] as int? : null;
+        }
+
+        // Upsert album
+        if (track.albumRatingKey != null && track.albumName.isNotEmpty) {
+          final album = Album(
+            ratingKey: track.albumRatingKey!,
+            title: track.albumName,
+            artistId: artistId,
+            artistName: track.artistName,
+            thumb: track.albumThumb,
+            year: track.year,
+            serverId: serverId,
+            addedAt: track.addedAt,
+          );
+          
+          await txn.insert(
+            'albums',
+            album.toDb(),
+            conflictAlgorithm: ConflictAlgorithm.ignore,
+          );
+          
+          final albumResult = await txn.query(
+            'albums',
+            where: 'rating_key = ?',
+            whereArgs: [track.albumRatingKey],
+            limit: 1,
+          );
+          albumId = albumResult.isNotEmpty ? albumResult.first['id'] as int? : null;
+        }
+
+        // Insert track with foreign keys
+        final trackWithFks = track.copyWith(
           artistId: artistId,
-          artistName: track.artistName,
-          thumb: track.albumThumb,
-          year: track.year,
-          serverId: serverId,
-          addedAt: track.addedAt,
+          albumId: albumId,
         );
-        
-        await insert('albums', album.toDb(), conflictAlgorithm: ConflictAlgorithm.ignore);
-        
-        final albumResult = await query(
-          'albums',
-          where: 'rating_key = ?',
-          whereArgs: [track.albumRatingKey],
-          limit: 1,
-        );
-        albumId = albumResult.isNotEmpty ? albumResult.first['id'] as int? : null;
-      }
+        await txn.insert('tracks', trackWithFks.toDb());
 
-      // Insert track with foreign keys
-      final trackWithFks = track.copyWith(
-        artistId: artistId,
-        albumId: albumId,
-      );
-      await insert('tracks', trackWithFks.toDb());
-    }
+        // Report progress every batchSize tracks
+        if (onProgress != null && (i % batchSize == 0 || i == tracks.length - 1)) {
+          onProgress(i + 1, tracks.length);
+        }
+      }
+    });
+
+    stopwatch.stop();
+    debugPrint('DATABASE: Saved ${tracks.length} tracks in ${stopwatch.elapsedMilliseconds}ms');
 
     // Update sync metadata
     await insert('sync_metadata', {
@@ -197,7 +227,7 @@ class TrackRepository extends BaseRepository {
       'track_count': tracks.length,
     });
 
-    debugPrint('DATABASE: Saved ${tracks.length} tracks for $serverId/$libraryKey');
+    debugPrint('DATABASE: Sync metadata updated for $serverId/$libraryKey');
   }
 
   /// Update track rating

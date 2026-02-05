@@ -23,14 +23,17 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
   String? _username;
   List<PlexServer> _servers = [];
   Map<String, List<Map<String, dynamic>>> _serverLibraries = {};
-  Map<String, Set<String>> _selectedLibraries = {};
+  // Single selection: only one server and one library can be selected
+  String? _selectedServerId;
+  String? _selectedLibraryKey;
   Map<String, dynamic>? _syncStatus;
   double _syncProgress = 0.0;
-  int _syncProgressCurrent = 0;
-  int _syncProgressTotal = 0;
   String? _currentSyncingLibrary;
   int _totalTracksSynced = 0;
   int _estimatedTotalTracks = 0;
+  bool _isSavingToDatabase = false;
+  int _tracksSavedToDb = 0;
+  int _totalTracksToSave = 0;
 
   static const Color _backgroundColor = Color(0xFF303030);
 
@@ -43,7 +46,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
   Future<void> _checkAuthStatus() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
-    
+
     final token = await _storageService.getPlexToken();
     if (token != null) {
       final isValid = await _authService.validateToken(token);
@@ -60,29 +63,26 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
         await _storageService.clearPlexCredentials();
       }
     }
-    
+
     if (!mounted) return;
     setState(() => _isLoading = false);
-    
+
     // Load sync status
     await _loadSyncStatus();
   }
 
   Future<void> _loadSyncStatus() async {
     try {
-      final syncMetadata = await _dbService.getAllSyncMetadata();
-      final trackCount = await _dbService.getTrackCount();
-      
+      final syncMetadata = await _dbService.tracks.getAllSyncMetadata();
+      final trackCount = await _dbService.tracks.getCount();
+
       if (syncMetadata.isNotEmpty) {
         final lastSync = syncMetadata.first['last_sync'] as int;
         final lastSyncDate = DateTime.fromMillisecondsSinceEpoch(lastSync);
-        
+
         if (mounted) {
           setState(() {
-            _syncStatus = {
-              'trackCount': trackCount,
-              'lastSync': lastSyncDate,
-            };
+            _syncStatus = {'trackCount': trackCount, 'lastSync': lastSyncDate};
           });
         }
       }
@@ -101,135 +101,162 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
         throw Exception('Not authenticated');
       }
 
-      final selectedServers = await _storageService.getSelectedServers();
-      if (selectedServers.isEmpty) {
-        throw Exception('No libraries selected');
-      }
-
-      // Calculate total libraries to sync
-      int totalLibraries = 0;
-      for (var server in _servers) {
-        final libraryKeys = selectedServers[server.machineIdentifier];
-        if (libraryKeys != null && libraryKeys.isNotEmpty) {
-          totalLibraries += libraryKeys.length;
-        }
+      final selectedServer = await _storageService.getSelectedServer();
+      final selectedLibrary = await _storageService.getSelectedLibrary();
+      if (selectedServer == null || selectedLibrary == null) {
+        throw Exception('No server or library selected');
       }
 
       // First pass: estimate total tracks by fetching counts
       int estimatedTracks = 0;
-      for (var server in _servers) {
-        final libraryKeys = selectedServers[server.machineIdentifier];
-        if (libraryKeys != null && libraryKeys.isNotEmpty) {
-          final serverUrl = _serverService.getBestConnectionUrlForServer(server);
-          if (serverUrl != null) {
-            for (var libraryKey in libraryKeys) {
-              try {
-                final tracks = await _libraryService.getTracks(token, serverUrl, libraryKey);
-                estimatedTracks += tracks.length;
-              } catch (e) {
-                // Continue if error
-              }
-            }
-          }
+      final serverUrl = await _storageService.getSelectedServerUrl();
+      if (serverUrl != null) {
+        try {
+          final tracks = await _libraryService.getTracks(
+            token,
+            serverUrl,
+            selectedLibrary,
+          );
+          estimatedTracks += tracks.length;
+        } catch (e) {
+          // Continue if error
         }
       }
 
       if (!mounted) return;
       setState(() {
-        _syncProgressTotal = totalLibraries;
-        _syncProgressCurrent = 0;
         _syncProgress = 0.0;
         _totalTracksSynced = 0;
         _estimatedTotalTracks = estimatedTracks > 0 ? estimatedTracks : 1;
       });
 
       int totalTracks = 0;
-      
-      // Sync tracks from all selected libraries
-      for (var server in _servers) {
-        final libraryKeys = selectedServers[server.machineIdentifier];
-        
-        if (libraryKeys != null && libraryKeys.isNotEmpty) {
-          final serverUrl = _serverService.getBestConnectionUrlForServer(server);
-          
-          if (serverUrl != null) {
-            for (var libraryKey in libraryKeys) {
-              if (!mounted) return;
-              
-              // Update progress tracking
-              final libraryInfo = _serverLibraries[server.machineIdentifier]
-                  ?.firstWhere(
-                    (lib) => lib['key'] == libraryKey,
-                    orElse: () => {'title': 'Library $libraryKey'},
-                  );
-              final libraryTitle = libraryInfo?['title'] as String? ?? 'Library $libraryKey';
-              
-              setState(() {
-                _currentSyncingLibrary = libraryTitle;
-              });
-              
-              // Allow UI to render progress update
-              await Future.delayed(const Duration(milliseconds: 50));
 
-              print('Syncing library $libraryKey from server ${server.machineIdentifier}...');
-              
-              final tracks = await _libraryService.getTracks(token, serverUrl, libraryKey);
-              
-              // Update progress for each track after fetching
-              for (int i = 0; i < tracks.length; i++) {
-                if (!mounted) return;
-                
-                final track = tracks[i];
-                track['serverId'] = server.machineIdentifier;
-                
-                // Update progress after each track
-                setState(() {
-                  _totalTracksSynced++;
-                  _syncProgress = _estimatedTotalTracks > 0 ? _totalTracksSynced / _estimatedTotalTracks : 0.0;
-                });
-                
-                // Render update every 5 tracks or on last track
-                if (i % 5 == 0 || i == tracks.length - 1) {
-                  await Future.delayed(const Duration(milliseconds: 16));
-                }
-              }
-              
-              // Add serverId to all tracks
-              final tracksWithServerId = tracks.map((track) {
-                track['serverId'] = server.machineIdentifier;
-                return track;
-              }).toList();
-              
-              await _dbService.saveTracks(server.machineIdentifier, libraryKey, tracksWithServerId);
-              totalTracks += tracks.length;
-              
-              if (!mounted) return;
-              setState(() {
-                _syncProgressCurrent++;
-              });
-              
-              print('Synced ${tracks.length} tracks from library $libraryKey');
-            }
+      // Sync tracks from the selected library
+      if (serverUrl != null) {
+        if (!mounted) return;
+
+        // Update progress tracking
+        final libraryInfo = _serverLibraries[selectedServer]?.firstWhere(
+          (lib) => lib['key'] == selectedLibrary,
+          orElse: () => {'title': 'Library $selectedLibrary'},
+        );
+        final libraryTitle =
+            libraryInfo?['title'] as String? ?? 'Library $selectedLibrary';
+
+        setState(() {
+          _currentSyncingLibrary = libraryTitle;
+        });
+
+        // Allow UI to render progress update
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        print(
+          'Syncing library $selectedLibrary from server $selectedServer...',
+        );
+
+        final tracks = await _libraryService.getTracks(
+          token,
+          serverUrl,
+          selectedLibrary,
+        );
+
+        // Update progress for each track after fetching
+        for (int i = 0; i < tracks.length; i++) {
+          if (!mounted) return;
+
+          final track = tracks[i];
+          track['serverId'] = selectedServer;
+
+          // Update progress after each track
+          setState(() {
+            _totalTracksSynced++;
+            _syncProgress = _estimatedTotalTracks > 0
+                ? _totalTracksSynced / _estimatedTotalTracks
+                : 0.0;
+          });
+
+          // Render update every 5 tracks or on last track
+          if (i % 5 == 0 || i == tracks.length - 1) {
+            await Future.delayed(const Duration(milliseconds: 16));
           }
         }
+
+        // Add serverId to all tracks
+        final tracksWithServerId = tracks.map((track) {
+          track['serverId'] = selectedServer;
+          return track;
+        }).toList();
+
+        // Update UI to show database save in progress
+        if (!mounted) return;
+        setState(() {
+          _isSavingToDatabase = true;
+          _tracksSavedToDb = 0;
+          _totalTracksToSave = tracksWithServerId.length;
+          _currentSyncingLibrary = 'Saving to database...';
+        });
+
+        await _dbService.saveTracks(
+          selectedServer,
+          selectedLibrary,
+          tracksWithServerId,
+          onProgress: (current, total) {
+            if (mounted) {
+              setState(() {
+                _tracksSavedToDb = current;
+                _totalTracksToSave = total;
+              });
+            }
+          },
+        );
+        totalTracks += tracks.length;
+
+        if (!mounted) return;
+
+        print('Synced ${tracks.length} tracks from library $selectedLibrary');
       }
 
       if (mounted) {
+        // Show success message with longer duration
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Successfully synced $totalTracks songs to local database'),
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Successfully synced $totalTracks songs to local database',
+                  ),
+                ),
+              ],
+            ),
             backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
           ),
         );
-        
+
         await _loadSyncStatus();
+        
+        // Keep the progress bar at 100% visible for a moment before clearing
+        await Future.delayed(const Duration(milliseconds: 1500));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error syncing library: $e'),
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Error syncing library: $e')),
+              ],
+            ),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -238,11 +265,12 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
         setState(() {
           _isSyncing = false;
           _syncProgress = 0.0;
-          _syncProgressCurrent = 0;
-          _syncProgressTotal = 0;
           _totalTracksSynced = 0;
           _estimatedTotalTracks = 0;
           _currentSyncingLibrary = null;
+          _isSavingToDatabase = false;
+          _tracksSavedToDb = 0;
+          _totalTracksToSave = 0;
         });
       }
     }
@@ -251,7 +279,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
   Future<void> _loadServersAndLibraries() async {
     if (!mounted) return;
     setState(() => _isLoadingServers = true);
-    
+
     final token = await _storageService.getPlexToken();
     if (token == null) {
       if (!mounted) return;
@@ -261,117 +289,188 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
 
     try {
       // Get servers
+      debugPrint('SERVER_SETTINGS: Fetching servers...');
       _servers = await _serverService.getServers(token);
-      
-      // Load saved selections
-      final savedSelections = await _storageService.getSelectedServers();
-      _selectedLibraries = savedSelections.map(
-        (key, value) => MapEntry(key, value.toSet())
-      );
+      debugPrint('SERVER_SETTINGS: Found ${_servers.length} servers');
+
+      if (_servers.isEmpty) {
+        debugPrint('SERVER_SETTINGS: No servers returned from API');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'No Plex servers found. Make sure your server is online and accessible.',
+              ),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+
+      // Load saved single selection
+      _selectedServerId = await _storageService.getSelectedServer();
+      _selectedLibraryKey = await _storageService.getSelectedLibrary();
 
       // Get libraries for all servers in parallel
       final libraryFutures = _servers.map((server) async {
         if (!mounted) return MapEntry('', <Map<String, dynamic>>[]);
+
+        debugPrint(
+          'SERVER_SETTINGS: Processing server "${server.name}" (${server.machineIdentifier})',
+        );
+        debugPrint(
+          'SERVER_SETTINGS: Server has ${server.connections.length} connections',
+        );
+
         final serverUrl = _serverService.getBestConnectionUrlForServer(server);
-        
-        if (serverUrl != null) {
-          try {
-            final libraries = await _libraryService.getLibraries(token, serverUrl);
-            return MapEntry(server.machineIdentifier, libraries.map((l) => l.toJson()).toList());
-          } catch (e) {
-            // Error fetching libraries - return empty list
-            return MapEntry(server.machineIdentifier, <Map<String, dynamic>>[]);
-          }
+
+        if (serverUrl == null) {
+          debugPrint(
+            'SERVER_SETTINGS: ⚠️ No valid connection URL for server "${server.name}"',
+          );
+          return MapEntry(server.machineIdentifier, <Map<String, dynamic>>[]);
         }
-        return MapEntry('', <Map<String, dynamic>>[]);
+
+        debugPrint('SERVER_SETTINGS: Using URL: $serverUrl');
+
+        try {
+          final libraries = await _libraryService.getMusicLibraries(
+            token,
+            serverUrl,
+          );
+          debugPrint(
+            'SERVER_SETTINGS: Found ${libraries.length} music libraries for "${server.name}"',
+          );
+          return MapEntry(
+            server.machineIdentifier,
+            libraries.map((l) => l.toJson()).toList(),
+          );
+        } catch (e) {
+          debugPrint(
+            'SERVER_SETTINGS: ❌ Error fetching libraries for "${server.name}": $e',
+          );
+          // Error fetching libraries - return empty list
+          return MapEntry(server.machineIdentifier, <Map<String, dynamic>>[]);
+        }
       }).toList();
 
       final libraryResults = await Future.wait(libraryFutures);
-      
+
       if (!mounted) return;
-      
+
       // Update state with results
+      int totalLibraries = 0;
       for (var entry in libraryResults) {
-        if (entry.key.isEmpty) continue; // Skip empty entries from early returns
+        if (entry.key.isEmpty)
+          continue; // Skip empty entries from early returns
         _serverLibraries[entry.key] = entry.value;
-        
-        // Initialize selection if not already set
-        if (!_selectedLibraries.containsKey(entry.key)) {
-          _selectedLibraries[entry.key] = {};
-        }
+        totalLibraries += entry.value.length;
       }
-    } catch (e) {
+
+      debugPrint('SERVER_SETTINGS: Total libraries loaded: $totalLibraries');
+
+      // Show warning if servers were found but no libraries
+      if (_servers.isNotEmpty && totalLibraries == 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Servers found but no libraries could be loaded. Check server connectivity.',
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      debugPrint('SERVER_SETTINGS: ❌ Fatal error loading servers: $e');
+      debugPrint('SERVER_SETTINGS: Stack trace: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error loading servers: $e'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 7),
           ),
         );
       }
     }
-    
+
     if (!mounted) return;
     setState(() => _isLoadingServers = false);
   }
 
   Future<void> _saveSelections() async {
-    final selections = _selectedLibraries.map(
-      (key, value) => MapEntry(key, value.toList())
-    );
-    await _storageService.saveSelectedServers(selections);
-    
-    // Build and save the server URL map for the selected servers
-    await _saveServerUrlMap();
-    
+    // Validate that both server and library are selected
+    if (_selectedServerId == null || _selectedLibraryKey == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select a server and a library'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Save single selection
+    await _storageService.saveSelectedServer(_selectedServerId!);
+    await _storageService.saveSelectedLibrary(_selectedLibraryKey!);
+
+    // Only now determine and save the best connection URL for the selected server
+    await _saveSelectedServerUrl();
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Server selections saved!'),
+          content: Text('Server selection saved!'),
           backgroundColor: Colors.green,
         ),
       );
     }
   }
 
-  /// Saves the mapping of server IDs to their best connection URLs.
-  Future<void> _saveServerUrlMap() async {
-    final Map<String, String> urlMap = {};
-    
-    for (var server in _servers) {
-      final serverUrl = _serverService.getBestConnectionUrlForServer(server);
-      if (serverUrl != null) {
-        urlMap[server.machineIdentifier] = serverUrl;
-        debugPrint('Saving server URL: ${server.machineIdentifier} -> $serverUrl');
-      }
+  /// Saves the best connection URL for the selected server only.
+  /// This is only called when user explicitly saves their selection.
+  Future<void> _saveSelectedServerUrl() async {
+    if (_selectedServerId == null) return;
+
+    final server = _servers.firstWhere(
+      (s) => s.machineIdentifier == _selectedServerId,
+      orElse: () => throw Exception('Selected server not found'),
+    );
+
+    // Get the best remote direct connection for the selected server
+    final serverUrl = _serverService.getBestConnectionUrlForServer(server);
+    if (serverUrl != null) {
+      await _storageService.saveSelectedServerUrl(serverUrl);
+      debugPrint('Saved selected server URL: $_selectedServerId -> $serverUrl');
     }
-    
-    await _storageService.saveServerUrlMap(urlMap);
-    debugPrint('Saved ${urlMap.length} server URLs to storage');
   }
 
   Future<void> _signIn() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
-    
+
     try {
       final result = await _authService.signIn();
-      
+
       if (result['success'] == true) {
         await _storageService.savePlexToken(result['token']);
         if (result['username'] != null) {
           await _storageService.saveUsername(result['username']);
         }
-        
+
         if (!mounted) return;
         setState(() {
           _isAuthenticated = true;
           _username = result['username'];
         });
-        
+
         // Load servers and libraries after successful sign-in
         await _loadServersAndLibraries();
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -393,10 +492,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -409,7 +505,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
   String _formatSyncDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
-    
+
     if (difference.inMinutes < 1) {
       return 'Just now';
     } else if (difference.inHours < 1) {
@@ -444,19 +540,22 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
 
     if (confirmed == true) {
       await _storageService.clearPlexCredentials();
+      await _dbService.clearAllData();
       if (!mounted) return;
       setState(() {
         _isAuthenticated = false;
         _username = null;
         _servers = [];
         _serverLibraries = {};
-        _selectedLibraries = {};
+        _selectedServerId = null;
+        _selectedLibraryKey = null;
+        _syncStatus = null;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Disconnected from Plex'),
+            content: Text('Disconnected from Plex and cleared local data'),
           ),
         );
       }
@@ -500,16 +599,16 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                                       _isAuthenticated
                                           ? 'Connected'
                                           : 'Not Connected',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleLarge,
                                     ),
                                     if (_isAuthenticated && _username != null)
                                       Text(
                                         'Logged in as $_username',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
                                       ),
                                   ],
                                 ),
@@ -547,7 +646,11 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                                             ),
                                           )
                                         : const Icon(Icons.sync),
-                                    label: Text(_isSyncing ? 'Syncing...' : 'Sync Library'),
+                                    label: Text(
+                                      _isSyncing
+                                          ? 'Syncing...'
+                                          : 'Sync Library',
+                                    ),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.green,
                                       foregroundColor: Colors.white,
@@ -580,12 +683,21 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                                   children: [
                                     Row(
                                       children: [
-                                        const Icon(Icons.sync, size: 20, color: Colors.blue),
+                                        const Icon(
+                                          Icons.sync,
+                                          size: 20,
+                                          color: Colors.blue,
+                                        ),
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
-                                            'Syncing $_currentSyncingLibrary',
-                                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                                            _isSavingToDatabase
+                                                ? 'Saving to database...'
+                                                : 'Syncing $_currentSyncingLibrary',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
@@ -595,16 +707,28 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(4),
                                       child: LinearProgressIndicator(
-                                        value: _syncProgress,
+                                        value: _isSavingToDatabase
+                                            ? (_totalTracksToSave > 0
+                                                ? _tracksSavedToDb / _totalTracksToSave
+                                                : 0.0)
+                                            : _syncProgress,
                                         minHeight: 6,
                                         backgroundColor: Colors.grey[300],
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[600]!),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.blue[600]!,
+                                            ),
                                       ),
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      '${(_syncProgress * 100).toStringAsFixed(0)}% • $_totalTracksSynced of $_estimatedTotalTracks songs',
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                      _isSavingToDatabase
+                                          ? 'Saving $_tracksSavedToDb of $_totalTracksToSave songs to database'
+                                          : '${(_syncProgress * 100).toStringAsFixed(0)}% • $_totalTracksSynced of $_estimatedTotalTracks songs',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[700],
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -632,15 +756,15 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                                 ),
                               ),
                             ],
-                          ]
-                          else
+                          ] else
                             ElevatedButton.icon(
                               onPressed: _signIn,
                               icon: const Icon(Icons.login),
                               label: const Text('Sign In with Plex'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    Theme.of(context).colorScheme.primary,
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
                                 foregroundColor: Colors.white,
                               ),
                             ),
@@ -648,7 +772,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                       ),
                     ),
                   ),
-                  
+
                   // Server and Library Selection
                   if (_isAuthenticated) ...[
                     const SizedBox(height: 16),
@@ -656,9 +780,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                       const Card(
                         child: Padding(
                           padding: EdgeInsets.all(16.0),
-                          child: Center(
-                            child: CircularProgressIndicator(),
-                          ),
+                          child: Center(child: CircularProgressIndicator()),
                         ),
                       )
                     else if (_servers.isEmpty)
@@ -667,7 +789,11 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                           padding: const EdgeInsets.all(16.0),
                           child: Column(
                             children: [
-                              const Icon(Icons.info_outline, size: 48, color: Colors.orange),
+                              const Icon(
+                                Icons.info_outline,
+                                size: 48,
+                                color: Colors.orange,
+                              ),
                               const SizedBox(height: 16),
                               Text(
                                 'No servers found',
@@ -690,7 +816,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                'Select Libraries',
+                                'Select Server & Library',
                                 style: Theme.of(context).textTheme.titleLarge,
                               ),
                               FilledButton.icon(
@@ -702,54 +828,83 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Choose which music libraries you want to use in Apollo',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.grey[600],
-                            ),
+                            'Choose one server and one music library to use in Apollo',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: Colors.grey[600]),
                           ),
                           const SizedBox(height: 16),
                           ..._servers.map((server) {
                             final serverId = server.machineIdentifier;
                             final serverName = server.name;
                             final libraries = _serverLibraries[serverId] ?? [];
-                            
+                            final isServerSelected =
+                                _selectedServerId == serverId;
+
                             return Card(
                               margin: const EdgeInsets.only(bottom: 16),
-                              child: ExpansionTile(
-                                leading: const Icon(Icons.dns),
-                                title: Text(serverName),
-                                subtitle: Text('${libraries.length} music ${libraries.length == 1 ? 'library' : 'libraries'}'),
+                              child: Column(
                                 children: [
-                                  if (libraries.isEmpty)
-                                    const Padding(
-                                      padding: EdgeInsets.all(16.0),
-                                      child: Text(
-                                        'No music libraries found on this server',
-                                        style: TextStyle(fontStyle: FontStyle.italic),
-                                      ),
-                                    )
-                                  else
-                                    ...libraries.map((library) {
-                                      final libraryKey = library['key'] as String;
-                                      final libraryTitle = library['title'] as String;
-                                      final isSelected = _selectedLibraries[serverId]?.contains(libraryKey) ?? false;
-                                      
-                                      return CheckboxListTile(
-                                        title: Text(libraryTitle),
-                                        subtitle: Text('Library ID: $libraryKey'),
-                                        value: isSelected,
-                                        onChanged: (bool? value) {
-                                          setState(() {
-                                            if (value == true) {
-                                              _selectedLibraries[serverId] ??= {};
-                                              _selectedLibraries[serverId]!.add(libraryKey);
-                                            } else {
-                                              _selectedLibraries[serverId]?.remove(libraryKey);
-                                            }
-                                          });
-                                        },
-                                      );
-                                    }),
+                                  // Server selection (radio button style)
+                                  RadioListTile<String>(
+                                    title: Row(
+                                      children: [
+                                        const Icon(Icons.dns),
+                                        const SizedBox(width: 12),
+                                        Text(serverName),
+                                      ],
+                                    ),
+                                    subtitle: Text(
+                                      '${libraries.length} music ${libraries.length == 1 ? 'library' : 'libraries'}',
+                                    ),
+                                    value: serverId,
+                                    groupValue: _selectedServerId,
+                                    onChanged: (String? value) {
+                                      setState(() {
+                                        _selectedServerId = value;
+                                        // Clear library selection when switching servers
+                                        _selectedLibraryKey = null;
+                                      });
+                                    },
+                                  ),
+                                  // Only show libraries if this server is selected
+                                  if (isServerSelected) ...[
+                                    const Divider(height: 1),
+                                    if (libraries.isEmpty)
+                                      const Padding(
+                                        padding: EdgeInsets.all(16.0),
+                                        child: Text(
+                                          'No music libraries found on this server',
+                                          style: TextStyle(
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      ...libraries.map((library) {
+                                        final libraryKey =
+                                            library['key'] as String;
+                                        final libraryTitle =
+                                            library['title'] as String;
+
+                                        return RadioListTile<String>(
+                                          title: Text(libraryTitle),
+                                          subtitle: Text(
+                                            'Library ID: $libraryKey',
+                                          ),
+                                          value: libraryKey,
+                                          groupValue: _selectedLibraryKey,
+                                          onChanged: (String? value) {
+                                            setState(() {
+                                              _selectedLibraryKey = value;
+                                            });
+                                          },
+                                          contentPadding: const EdgeInsets.only(
+                                            left: 48,
+                                            right: 16,
+                                          ),
+                                        );
+                                      }),
+                                  ],
                                 ],
                               ),
                             );
@@ -757,7 +912,7 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
                         ],
                       ),
                   ],
-                  
+
                   const SizedBox(height: 16),
                   Card(
                     child: Padding(

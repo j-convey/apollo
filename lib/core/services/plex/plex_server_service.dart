@@ -84,34 +84,64 @@ class PlexServerService {
   /// Fetches all owned Plex servers for the authenticated user.
   Future<List<PlexServer>> getServers(String token) async {
     try {
+      debugPrint('PLEX_SERVER_SERVICE: Fetching servers from Plex API...');
       final response = await _apiClient.get(
         '${PlexConstants.plexApiUrl}/api/v2/resources?includeHttps=1&includeRelay=1',
         token: token,
       );
 
+      debugPrint(
+        'PLEX_SERVER_SERVICE: Response status: ${response.statusCode}',
+      );
+
       if (response.statusCode == 200) {
         final List<dynamic> data = _apiClient.decodeJson(response);
-        return data
-            .where((resource) =>
-                resource['product'] == 'Plex Media Server' &&
-                resource['owned'] == true)
+        debugPrint('PLEX_SERVER_SERVICE: Found ${data.length} total resources');
+
+        final servers = data
+            .where((resource) {
+              final isMediaServer = resource['product'] == 'Plex Media Server';
+              final isOwned = resource['owned'] == true;
+              debugPrint(
+                'PLEX_SERVER_SERVICE: Resource "${resource['name']}" - '
+                'Product: ${resource['product']}, Owned: ${resource['owned']}',
+              );
+              return isMediaServer && isOwned;
+            })
             .map((resource) => PlexServer.fromJson(resource))
             .toList();
+
+        debugPrint(
+          'PLEX_SERVER_SERVICE: Filtered to ${servers.length} owned Plex Media Servers',
+        );
+        for (var server in servers) {
+          debugPrint(
+            'PLEX_SERVER_SERVICE: - ${server.name} (${server.machineIdentifier}) with ${server.connections.length} connections',
+          );
+        }
+
+        return servers;
       }
+      debugPrint('PLEX_SERVER_SERVICE: Non-200 response, returning empty list');
       return [];
-    } catch (e) {
-      debugPrint('Error fetching servers: $e');
+    } catch (e, stackTrace) {
+      debugPrint('PLEX_SERVER_SERVICE: ❌ Error fetching servers: $e');
+      debugPrint('PLEX_SERVER_SERVICE: Stack trace: $stackTrace');
       return [];
     }
   }
 
   /// Finds the best remote HTTPS connection for a server.
-  /// Priority order:
-  /// 1. Direct remote HTTPS (non-relay, non-local)
-  /// 2. Relay HTTPS (if no direct available)
-  /// 3. Any HTTPS connection
-  /// 4. Any connection as fallback
-  PlexConnection? findBestConnection(List<PlexConnection> connections, {String? serverName}) {
+  /// Priority order (always prefer remote direct):
+  /// 1. Remote direct HTTPS (non-relay, non-local) - PREFERRED
+  /// 2. Any remote HTTPS connection
+  /// 3. Relay HTTPS (if no direct available)
+  /// 4. Any HTTPS connection (including local)
+  /// 5. Any connection as fallback
+  PlexConnection? findBestConnection(
+    List<PlexConnection> connections, {
+    String? serverName,
+  }) {
     debugPrint('========== CONNECTION SELECTION ==========');
     if (serverName != null) {
       debugPrint('Server: $serverName');
@@ -119,24 +149,40 @@ class PlexServerService {
     debugPrint('Available connections: ${connections.length}');
     for (var conn in connections) {
       debugPrint('  - URI: ${conn.uri}');
-      debugPrint('    Local: ${conn.isLocal}, Remote: ${conn.isRemote}, Relay: ${conn.isRelay}');
+      debugPrint(
+        '    Local: ${conn.isLocal}, Remote: ${conn.isRemote}, Relay: ${conn.isRelay}, Direct: ${conn.isDirect}',
+      );
       debugPrint('    Protocol: ${conn.protocol}, Port: ${conn.port}');
     }
 
-    // Priority 1: Direct remote HTTPS connections (non-relay, non-local)
+    // Priority 1: Remote direct HTTPS connections (non-relay, non-local) - ALWAYS PREFERRED
     // Sort by port DESCENDING to prefer user-configured ports (usually higher than default 32400)
-    final directRemoteHttps = connections
-        .where((c) => c.isDirect && c.isHttps)
-        .toList()
-      ..sort((a, b) => b.port.compareTo(a.port)); // Descending - prefer higher ports
+    final remoteDirectHttps =
+        connections.where((c) => c.isRemote && c.isDirect && c.isHttps).toList()
+          ..sort(
+            (a, b) => b.port.compareTo(a.port),
+          ); // Descending - prefer higher ports
 
-    if (directRemoteHttps.isNotEmpty) {
-      final selected = directRemoteHttps.first;
-      debugPrint('✓ Selected DIRECT remote HTTPS connection: ${selected.uri}');
+    if (remoteDirectHttps.isNotEmpty) {
+      final selected = remoteDirectHttps.first;
+      debugPrint(
+        '✓ Selected REMOTE DIRECT HTTPS connection (PREFERRED): ${selected.uri}',
+      );
       return selected;
     }
 
-    // Priority 2: Relay HTTPS connections (slower but still works)
+    // Priority 2: Any remote HTTPS connection (including non-direct)
+    final remoteHttps =
+        connections.where((c) => c.isRemote && c.isHttps).toList()
+          ..sort((a, b) => b.port.compareTo(a.port)); // Descending
+
+    if (remoteHttps.isNotEmpty) {
+      final selected = remoteHttps.first;
+      debugPrint('✓ Selected remote HTTPS connection: ${selected.uri}');
+      return selected;
+    }
+
+    // Priority 3: Relay HTTPS connections (slower but still works)
     final relayHttps = connections
         .where((c) => c.isRelay && c.isHttps)
         .toList();
@@ -147,19 +193,7 @@ class PlexServerService {
       return selected;
     }
 
-    // Priority 3: Any remote HTTPS connection
-    final remoteHttps = connections
-        .where((c) => c.isRemote && c.isHttps)
-        .toList()
-      ..sort((a, b) => b.port.compareTo(a.port)); // Descending
-
-    if (remoteHttps.isNotEmpty) {
-      final selected = remoteHttps.first;
-      debugPrint('✓ Selected remote HTTPS connection: ${selected.uri}');
-      return selected;
-    }
-
-    // Priority 4: Any HTTPS connection
+    // Priority 4: Any HTTPS connection (including local)
     final anyHttps = connections.where((c) => c.isHttps).toList();
     if (anyHttps.isNotEmpty) {
       final selected = anyHttps.first;
@@ -167,7 +201,7 @@ class PlexServerService {
       return selected;
     }
 
-    // Priority 5: Any connection
+    // Priority 5: Any connection as fallback
     if (connections.isNotEmpty) {
       final selected = connections.first;
       debugPrint('⚠ Selected fallback connection: ${selected.uri}');
@@ -179,10 +213,13 @@ class PlexServerService {
   }
 
   /// Gets the best connection URL for a server.
-  String? getBestConnectionUrl(List<PlexConnection> connections, {String? serverName}) {
+  String? getBestConnectionUrl(
+    List<PlexConnection> connections, {
+    String? serverName,
+  }) {
     return findBestConnection(connections, serverName: serverName)?.uri;
   }
-  
+
   /// Gets the best connection URL for a PlexServer object.
   String? getBestConnectionUrlForServer(PlexServer server) {
     return findBestConnection(server.connections, serverName: server.name)?.uri;
@@ -196,7 +233,9 @@ class PlexServerService {
       final bestUrl = getBestConnectionUrlForServer(server);
       if (bestUrl != null) {
         urlMap[server.machineIdentifier] = bestUrl;
-        debugPrint('Server "${server.name}" (${server.machineIdentifier}) -> $bestUrl');
+        debugPrint(
+          'Server "${server.name}" (${server.machineIdentifier}) -> $bestUrl',
+        );
       }
     }
 
@@ -224,7 +263,10 @@ class PlexServerService {
     Map<String, List<String>> selectedLibraries,
   ) async {
     final servers = await getServers(token);
-    final selectedServer = findServerWithSelectedLibraries(servers, selectedLibraries);
+    final selectedServer = findServerWithSelectedLibraries(
+      servers,
+      selectedLibraries,
+    );
 
     if (selectedServer == null) {
       debugPrint('No server with selected libraries found');
@@ -246,21 +288,27 @@ class PlexServerService {
   /// If serverId is null or not found, returns null.
   Future<String?> getUrlForServer(String token, String? serverId) async {
     if (serverId == null) return null;
-    
+
     final servers = await getServers(token);
-    final server = servers.where((s) => s.machineIdentifier == serverId).firstOrNull;
-    
+    final server = servers
+        .where((s) => s.machineIdentifier == serverId)
+        .firstOrNull;
+
     if (server == null) {
       debugPrint('Server not found: $serverId');
       return null;
     }
-    
+
     return getBestConnectionUrlForServer(server);
   }
 
   /// Gets all servers with their best URLs as a convenience wrapper.
-  Future<List<({PlexServer server, String? url})>> getServersWithUrls(String token) async {
+  Future<List<({PlexServer server, String? url})>> getServersWithUrls(
+    String token,
+  ) async {
     final servers = await getServers(token);
-    return servers.map((s) => (server: s, url: getBestConnectionUrlForServer(s))).toList();
+    return servers
+        .map((s) => (server: s, url: getBestConnectionUrlForServer(s)))
+        .toList();
   }
 }

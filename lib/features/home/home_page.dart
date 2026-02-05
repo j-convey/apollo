@@ -3,6 +3,7 @@ import '../../core/services/audio_player_service.dart';
 import '../../core/services/storage_service.dart';
 import '../library/library_page.dart';
 import '../playlists/playlists_page.dart';
+import '../artist/artists_library_page.dart';
 
 class HomePage extends StatelessWidget {
   final Function(Widget)? onNavigate;
@@ -83,6 +84,32 @@ class HomePage extends StatelessWidget {
                     },
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Artists tile
+            Row(
+              children: [
+                Expanded(
+                  child: _QuickAccessTile(
+                    icon: Icons.person,
+                    label: 'Artists',
+                    color: Colors.green,
+                    onTap: () {
+                      if (onNavigate != null) {
+                        onNavigate!(ArtistsLibraryPage(
+                          audioPlayerService: audioPlayerService,
+                          onNavigate: onNavigate,
+                          onHomeTap: onHomeTap,
+                          onSettingsTap: onSettingsTap,
+                          onProfileTap: onProfileTap,
+                        ));
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Expanded(child: SizedBox()), // Placeholder for future tile
               ],
             ),
             const SizedBox(height: 32),
