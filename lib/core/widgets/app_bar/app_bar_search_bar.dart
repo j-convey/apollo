@@ -200,10 +200,10 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
                 color: Colors.grey[800],
                 shape: BoxShape.circle,
               ),
-              child: artist['artistThumb'] != null
+              child: artist['thumb'] != null
                   ? ClipOval(
                       child: Image.network(
-                        '$_serverUrl${artist['artistThumb']}?X-Plex-Token=$_token',
+                        '$_serverUrl${artist['thumb']}?X-Plex-Token=$_token',
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return const Icon(Icons.person, color: Colors.grey);
@@ -220,7 +220,7 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    artist['artistName'] as String? ?? 'Unknown Artist',
+                    artist['name'] as String? ?? 'Unknown Artist',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -321,7 +321,7 @@ class _AppBarSearchBarState extends State<AppBarSearchBar> {
     
     if (widget.onNavigate != null && token != null && serverUrl != null) {
       final ratingKey = artist['ratingKey'] as String?; // Use ratingKey for API calls
-      final artistName = artist['artistName'] as String?;
+      final artistName = artist['name'] as String?; // Changed from 'artistName' to 'name'
       if (ratingKey == null || artistName == null) return;
       
       widget.onNavigate!(

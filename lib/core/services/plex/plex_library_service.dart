@@ -87,7 +87,8 @@ class PlexLibraryService {
       debugPrint('Library Key: $libraryKey');
 
       // Request with includeDetails to get full metadata including artist/album info
-      final url = '$serverUrl/library/sections/$libraryKey/all?type=10&includeExternalMedia=1';
+      // Include all necessary fields for complete track data (especially album artwork)
+      final url = '$serverUrl/library/sections/$libraryKey/all?type=10&includeExternalMedia=1&includeFields=thumb,parentThumb,grandparentThumb,grandparentArt,parentArt';
 
       final response = await _apiClient.getWithTimeout(
         url,
