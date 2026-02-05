@@ -31,6 +31,8 @@ A modern, cross-platform music player built with Flutter that seamlessly integra
   <img width="1920" height="1468" alt="image" src="https://github.com/user-attachments/assets/3bd08996-6b56-4916-b6e1-633c9840a0d5" />
 
 - **Search Functionality**: Fast, real-time search across your music library
+<img width="699" height="708" alt="image" src="https://github.com/user-attachments/assets/abdc19fc-cd8d-4150-8f0b-a256dd3c4e5b" />
+
 - **Recently Played**: Quick access to recently played tracks
 - **Playlists**: Create and manage custom playlists (coming soon)
 
