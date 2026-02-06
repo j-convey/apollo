@@ -254,7 +254,9 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
         if (serverUrl != null) {
           try {
             final libraries = await _libraryService.getLibraries(token, serverUrl);
-            return MapEntry(server.machineIdentifier, libraries.map((l) => l.toJson()).toList());
+            // Filter to only music libraries (type == 'artist')
+            final musicLibraries = libraries.where((l) => l.isMusicLibrary).toList();
+            return MapEntry(server.machineIdentifier, musicLibraries.map((l) => l.toJson()).toList());
           } catch (e) {
             // Error fetching libraries - return empty list
             return MapEntry(server.machineIdentifier, <Map<String, dynamic>>[]);
