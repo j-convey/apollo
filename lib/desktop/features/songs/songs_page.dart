@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../core/services/plex/plex_services.dart';
-import '../../core/services/storage_service.dart';
-import '../../core/services/audio_player_service.dart';
-import '../../../core/database/database_service.dart';
-import '../../core/models/track.dart';
-import '../collection/collection_page.dart';
-import '../collection/widgets/collection_header.dart';
+import 'package:apollo/core/services/plex/plex_services.dart';
+import 'package:apollo/core/services/storage_service.dart';
+import 'package:apollo/core/services/audio_player_service.dart';
+import 'package:apollo/core/database/database_service.dart';
+import 'package:apollo/desktop/features/collection/collection_page.dart';
+import 'package:apollo/desktop/features/collection/widgets/collection_header.dart';
 
 /// Songs page that displays the user's entire library.
 /// Uses the reusable CollectionPage component.

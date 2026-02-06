@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import '../../core/models/playlist.dart';
-import '../../core/database/database_service.dart';
+import '../models/playlist.dart';
+import '../database/database_service.dart';
 
 /// Service for managing playlists.
 /// Single responsibility: Playlist synchronization and local storage.

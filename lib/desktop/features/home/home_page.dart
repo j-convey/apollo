@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../core/services/audio_player_service.dart';
-import '../../core/services/storage_service.dart';
-import '../songs/songs_page.dart';
-import '../playlists/playlists_page.dart';
+import 'package:apollo/core/services/audio_player_service.dart';
+import 'package:apollo/core/services/storage_service.dart';
+import 'package:apollo/desktop/features/songs/songs_page.dart';
+import 'package:apollo/desktop/features/playlists/playlists_page.dart';
+import 'package:apollo/desktop/features/artist/artists_list_page.dart';
 
 class HomePage extends StatelessWidget {
   final Function(Widget)? onNavigate;
@@ -74,6 +75,25 @@ class HomePage extends StatelessWidget {
                       if (onNavigate != null) {
                         onNavigate!(PlaylistsPage(
                           onNavigate: onNavigate!,
+                          audioPlayerService: audioPlayerService,
+                          onHomeTap: onHomeTap,
+                          onSettingsTap: onSettingsTap,
+                          onProfileTap: onProfileTap,
+                        ));
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _QuickAccessTile(
+                    icon: Icons.person,
+                    label: 'Artists',
+                    color: Colors.orange,
+                    onTap: () {
+                      if (onNavigate != null) {
+                        onNavigate!(ArtistsListPage(
+                          onNavigate: onNavigate,
                           audioPlayerService: audioPlayerService,
                           onHomeTap: onHomeTap,
                           onSettingsTap: onSettingsTap,

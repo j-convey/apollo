@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/services/audio_player_service.dart';
+import 'package:apollo/core/services/audio_player_service.dart';
 import 'album_display.dart';
 
 /// Album page that displays an album of tracks.

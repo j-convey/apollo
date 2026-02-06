@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/services/audio_player_service.dart';
+import 'package:apollo/core/services/audio_player_service.dart';
 
 /// Action buttons for collection pages (Play, Shuffle, Download)
 class CollectionActionButtons extends StatelessWidget {

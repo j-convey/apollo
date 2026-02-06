@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import '../services/audio_player_service.dart';
-import '../services/plex/plex_services.dart';
-import '../../features/artist/artist_page.dart';
+import 'package:apollo/core/services/audio_player_service.dart';
+import 'package:apollo/core/services/plex/plex_services.dart';
+import 'package:apollo/core/database/database_service.dart';
+import 'package:apollo/desktop/features/artist/artist_page.dart';
 
 class PlayerBar extends StatefulWidget {
   final AudioPlayerService playerService;
@@ -20,6 +21,8 @@ class PlayerBar extends StatefulWidget {
 class _PlayerBarState extends State<PlayerBar> {
   late double _currentVolume;
   final PlexServerService _serverService = PlexServerService();
+  final DatabaseService _dbService = DatabaseService();
+  bool _isLiked = false;
 
   @override
   void initState() {
@@ -44,6 +47,10 @@ class _PlayerBarState extends State<PlayerBar> {
         if (track == null) {
           return const SizedBox.shrink();
         }
+
+        // Check like status from track data
+        final userRating = track['user_rating'] as double?;
+        _isLiked = userRating != null && userRating >= 10.0;
 
         return Container(
           height: 90,
@@ -174,10 +181,24 @@ class _PlayerBarState extends State<PlayerBar> {
                       const SizedBox(width: 8),
                       // Like button
                       IconButton(
-                        icon: const Icon(Icons.favorite_border, size: 20),
-                        color: Colors.grey[400],
-                        onPressed: () {
-                          // TODO: Implement like functionality
+                        icon: Icon(
+                          _isLiked ? Icons.favorite : Icons.favorite_border,
+                          size: 20,
+                        ),
+                        color: _isLiked ? Colors.green : Colors.grey[400],
+                        onPressed: () async {
+                          final ratingKey = track['ratingKey']?.toString() ??
+                              track['rating_key']?.toString();
+                          if (ratingKey == null) return;
+
+                          final newRating = _isLiked ? 0.0 : 10.0;
+                          await _dbService.tracks.updateRating(ratingKey, newRating);
+
+                          // Update the track map so the UI reflects the change
+                          track['user_rating'] = newRating;
+                          setState(() {
+                            _isLiked = !_isLiked;
+                          });
                         },
                       ),
                     ],

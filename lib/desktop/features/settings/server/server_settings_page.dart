@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:apollo/core/services/plex/plex_services.dart';
 import 'package:apollo/core/services/storage_service.dart';
-import '../../../core/database/database_service.dart';
+import 'package:apollo/core/database/database_service.dart';
 
 class ServerSettingsPage extends StatefulWidget {
   const ServerSettingsPage({super.key});
@@ -26,8 +26,6 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
   Map<String, Set<String>> _selectedLibraries = {};
   Map<String, dynamic>? _syncStatus;
   double _syncProgress = 0.0;
-  int _syncProgressCurrent = 0;
-  int _syncProgressTotal = 0;
   String? _currentSyncingLibrary;
   int _totalTracksSynced = 0;
   int _estimatedTotalTracks = 0;
@@ -115,37 +113,17 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
         }
       }
 
-      // First pass: estimate total tracks by fetching counts
-      int estimatedTracks = 0;
-      for (var server in _servers) {
-        final libraryKeys = selectedServers[server.machineIdentifier];
-        if (libraryKeys != null && libraryKeys.isNotEmpty) {
-          final serverUrl = _serverService.getBestConnectionUrlForServer(server);
-          if (serverUrl != null) {
-            for (var libraryKey in libraryKeys) {
-              try {
-                final tracks = await _libraryService.getTracks(token, serverUrl, libraryKey);
-                estimatedTracks += tracks.length;
-              } catch (e) {
-                // Continue if error
-              }
-            }
-          }
-        }
-      }
-
       if (!mounted) return;
       setState(() {
-        _syncProgressTotal = totalLibraries;
-        _syncProgressCurrent = 0;
         _syncProgress = 0.0;
         _totalTracksSynced = 0;
-        _estimatedTotalTracks = estimatedTracks > 0 ? estimatedTracks : 1;
+        _estimatedTotalTracks = 1; // Will be updated as we fetch
       });
 
       int totalTracks = 0;
+      int librariesCompleted = 0;
       
-      // Sync tracks from all selected libraries
+      // Sync tracks from all selected libraries (fetch + save in one pass)
       for (var server in _servers) {
         final libraryKeys = selectedServers[server.machineIdentifier];
         
@@ -165,50 +143,51 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
               final libraryTitle = libraryInfo?['title'] as String? ?? 'Library $libraryKey';
               
               setState(() {
-                _currentSyncingLibrary = libraryTitle;
+                _currentSyncingLibrary = '$libraryTitle (fetching...)';
               });
-              
-              // Allow UI to render progress update
-              await Future.delayed(const Duration(milliseconds: 50));
 
-              print('Syncing library $libraryKey from server ${server.machineIdentifier}...');
+              print('Fetching library $libraryKey from server ${server.machineIdentifier}...');
               
               final tracks = await _libraryService.getTracks(token, serverUrl, libraryKey);
               
-              // Update progress for each track after fetching
-              for (int i = 0; i < tracks.length; i++) {
-                if (!mounted) return;
-                
-                final track = tracks[i];
-                track['serverId'] = server.machineIdentifier;
-                
-                // Update progress after each track
-                setState(() {
-                  _totalTracksSynced++;
-                  _syncProgress = _estimatedTotalTracks > 0 ? _totalTracksSynced / _estimatedTotalTracks : 0.0;
-                });
-                
-                // Render update every 5 tracks or on last track
-                if (i % 5 == 0 || i == tracks.length - 1) {
-                  await Future.delayed(const Duration(milliseconds: 16));
-                }
-              }
-              
-              // Add serverId to all tracks
+              // Add serverId to all tracks (do once, not twice)
               final tracksWithServerId = tracks.map((track) {
                 track['serverId'] = server.machineIdentifier;
                 return track;
               }).toList();
               
-              await _dbService.saveTracks(server.machineIdentifier, libraryKey, tracksWithServerId);
+              if (!mounted) return;
+              setState(() {
+                _currentSyncingLibrary = '$libraryTitle (saving...)';
+                _estimatedTotalTracks = totalTracks + tracks.length; // Update estimate
+              });
+              
+              print('Saving ${tracks.length} tracks from library $libraryKey...');
+              
+              // Save with progress callback
+              await _dbService.saveTracks(
+                server.machineIdentifier,
+                libraryKey,
+                tracksWithServerId,
+                onProgress: (current, total) {
+                  if (mounted) {
+                    setState(() {
+                      _currentSyncingLibrary = '$libraryTitle (saving $current/$total)';
+                    });
+                  }
+                },
+              );
+              
               totalTracks += tracks.length;
+              librariesCompleted++;
               
               if (!mounted) return;
               setState(() {
-                _syncProgressCurrent++;
+                _totalTracksSynced = totalTracks;
+                _syncProgress = librariesCompleted / totalLibraries;
               });
               
-              print('Synced ${tracks.length} tracks from library $libraryKey');
+              print('Completed ${tracks.length} tracks from library $libraryKey');
             }
           }
         }
@@ -238,8 +217,6 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
         setState(() {
           _isSyncing = false;
           _syncProgress = 0.0;
-          _syncProgressCurrent = 0;
-          _syncProgressTotal = 0;
           _totalTracksSynced = 0;
           _estimatedTotalTracks = 0;
           _currentSyncingLibrary = null;

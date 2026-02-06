@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../core/models/artist.dart';
-import '../../core/services/plex/plex_artist_service.dart';
-import '../../core/services/audio_player_service.dart';
+import 'package:apollo/core/models/artist.dart';
+import 'package:apollo/core/services/plex/plex_artist_service.dart';
+import 'package:apollo/core/services/audio_player_service.dart';
 
 /// Artist page displaying artist info and popular tracks.
 /// Inspired by Spotify's artist page design.

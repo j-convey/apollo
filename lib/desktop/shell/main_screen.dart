@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import '../../core/widgets/apollo_app_bar.dart';
-import '../../core/widgets/player_bar.dart';
-import '../../core/services/audio_player_service.dart';
-import '../../core/services/storage_service.dart';
-import '../../core/services/plex/plex_services.dart';
-import '../authentication/domain/authentication_check_service.dart';
-import '../authentication/presentation/authentication_modal.dart';
-import '../home/home_page.dart';
-import '../settings/settings_page.dart';
-import '../profile/profile_page.dart';
+import 'apollo_app_bar.dart';
+import 'player_bar.dart';
+import 'package:apollo/core/services/audio_player_service.dart';
+import 'package:apollo/core/services/storage_service.dart';
+import 'package:apollo/core/services/plex/plex_services.dart';
+import 'package:apollo/core/services/authentication_check_service.dart';
+import 'package:apollo/desktop/features/authentication/presentation/authentication_modal.dart';
+import 'package:apollo/desktop/features/home/home_page.dart';
+import 'package:apollo/desktop/features/settings/settings_page.dart';
+import 'package:apollo/desktop/features/profile/profile_page.dart';
 
 class MainScreen extends StatefulWidget {
   final AudioPlayerService? audioPlayerService;

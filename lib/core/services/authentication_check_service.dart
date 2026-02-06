@@ -1,4 +1,4 @@
-import '../../../core/services/storage_service.dart';
+import 'storage_service.dart';
 
 /// Service responsible for checking authentication status.
 /// Single Responsibility: Only checks if user is authenticated.

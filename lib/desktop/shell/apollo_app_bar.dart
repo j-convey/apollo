@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
-import 'app_bar/navigation_buttons.dart';
-import 'app_bar/app_bar_search_bar.dart';
-import 'app_bar/app_bar_actions.dart';
-import 'app_bar/window_controls.dart';
-import '../services/audio_player_service.dart';
+import 'navigation_buttons.dart';
+import 'app_bar_search_bar.dart';
+import 'app_bar_actions.dart';
+import 'window_controls.dart';
+import 'package:apollo/core/services/audio_player_service.dart';
 
 class ApolloAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onHomeTap;

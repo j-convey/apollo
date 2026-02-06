@@ -158,6 +158,7 @@ class PlexLibraryService {
             'parentTitle': track['parentTitle'],
             'parentThumb': track['parentThumb'],
             'ratingKey': track['ratingKey'],
+            'userRating': track['userRating'],
           };
         })
         .toList();

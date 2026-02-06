@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../../core/database/database_service.dart';
-import '../../services/audio_player_service.dart';
-import '../../services/storage_service.dart';
-import '../../../features/artist/artist_page.dart';
+import 'package:apollo/core/database/database_service.dart';
+import 'package:apollo/core/services/audio_player_service.dart';
+import 'package:apollo/core/services/storage_service.dart';
+import 'package:apollo/desktop/features/artist/artist_page.dart';
 
 class AppBarSearchBar extends StatefulWidget {
   final AudioPlayerService? audioPlayerService;

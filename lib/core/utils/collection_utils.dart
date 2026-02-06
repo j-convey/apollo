@@ -1,6 +1,6 @@
 import 'package:intl/intl.dart';
 
-/// Utility functions for collection pages
+/// Utility functions for collection and album pages
 class CollectionUtils {
   /// Format milliseconds duration to mm:ss format
   static String formatDuration(int milliseconds) {
@@ -8,6 +8,12 @@ class CollectionUtils {
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds % 60;
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  /// Format nullable milliseconds duration to mm:ss format
+  static String formatDurationNullable(int? milliseconds) {
+    if (milliseconds == null || milliseconds == 0) return '0:00';
+    return formatDuration(milliseconds);
   }
 
   /// Format Unix timestamp to readable date

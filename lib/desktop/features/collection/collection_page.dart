@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../core/services/audio_player_service.dart';
+import 'package:apollo/core/services/audio_player_service.dart';
 import 'widgets/collection_header.dart';
 import 'widgets/collection_action_buttons.dart';
 import 'widgets/collection_sticky_header_delegate.dart';
 import 'widgets/collection_scrollbar.dart';
 import 'widgets/collection_track_list_item.dart';
-import 'utils/collection_utils.dart';
+import 'package:apollo/core/utils/collection_utils.dart';
 
 /// A reusable page for displaying collections of tracks.
 /// Can be used for Library, Playlists, Albums, and Artist views.

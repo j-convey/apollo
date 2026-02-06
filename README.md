@@ -87,32 +87,50 @@ flutter build linux --release
 
 ```
 lib/
-├── core/                    # Core application components
-│   ├── constants/          # App-wide constants
-│   ├── services/           # Business logic services
-│   │   ├── audio_player_service.dart    # Audio playback management
-│   │   ├── plex_auth_service.dart       # Plex authentication
-│   │   ├── storage_service.dart         # Local data persistence
-│   │   └── database_service.dart        # SQLite database operations
-│   ├── theme/              # UI theming (future use)
-│   ├── utils/              # Utility functions (future use)
-│   └── widgets/            # Shared UI components
-│       ├── apollo_app_bar.dart          # Custom app bar
-│       ├── player_bar.dart              # Playback controls
-│       └── app_bar/                     # App bar sub-components
-├── features/               # Feature-based modules
-│   ├── authentication/     # User authentication
-│   ├── home/               # Home screen
-│   ├── music/              # Music library browsing
-│   ├── player/             # Audio player (future use)
-│   ├── playlists/          # Playlist management
-│   ├── settings/           # App settings
-│   │   └── server/         # Server configuration
-│   └── songs/              # Song list and details
-│       ├── songs_page.dart
-│       ├── utils/
-│       └── widgets/
-└── main.dart               # Application entry point
+├── main.dart                          # Platform router
+├── core/                              # Headless shared logic
+│   ├── constants/
+│   ├── database/                      # DB service + repos + schema (cross-platform)
+│   ├── models/                        # Track, Album, Artist, Playlist
+│   ├── services/                      # AudioPlayer, Storage, Plex*, Playlist, AuthCheck
+│   ├── theme/                         # Shared ThemeData definitions
+│   └── utils/                         # string_utils, collection_utils (consolidated)
+├── shared/                            # Shared UI components
+│   └── widgets/                       # Headers, action buttons, cards, dialogs
+├── desktop/                           # Desktop app
+│   ├── main_desktop.dart              # WindowManager init
+│   ├── shell/                         # AppBar, WindowControls, NavButtons, PlayerBar
+│   └── features/                      # All current feature pages (moved as-is)
+│       ├── album/
+│       ├── artist/
+│       ├── authentication/
+│       ├── collection/
+│       ├── home/
+│       ├── music/
+│       ├── playlists/
+│       ├── profile/
+│       ├── settings/
+│       └── songs/
+└── mobile/                            # Android app (built fresh)
+    ├── main_mobile.dart
+    ├── shell/
+    └── features/
+```
+
+```
+lib/mobile/
+├── main_mobile.dart              # MaterialApp with mobile theme, no window_manager
+├── shell/
+│   ├── mobile_shell.dart         # Scaffold with BottomNavigationBar + mini player
+│   └── mini_player.dart          # Collapsed player bar, tappable to expand
+└── features/
+    ├── home/
+    ├── songs/
+    ├── albums/
+    ├── artists/
+    ├── playlists/
+    ├── settings/
+    └── profile/
 ```
 
 ### Key Technologies

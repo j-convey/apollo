@@ -1,59 +1,13 @@
-import 'package:flutter/material.dart';
-import 'package:window_manager/window_manager.dart';
-import 'package:media_kit/media_kit.dart';
-import 'features/main/main_screen.dart';
-import 'core/services/audio_player_service.dart';
-import 'core/services/storage_service.dart';
+import 'dart:io' show Platform;
+import 'desktop/main_desktop.dart' as desktop;
+// import 'mobile/main_mobile.dart' as mobile;
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize media_kit for audio playback
-  MediaKit.ensureInitialized();
-  
-  // Configure window
-  await windowManager.ensureInitialized();
-  
-  WindowOptions windowOptions = const WindowOptions(
-    size: Size(1280, 720),
-    minimumSize: Size(800, 600),
-    center: true,
-    backgroundColor: Colors.transparent,
-    skipTaskbar: false,
-    titleBarStyle: TitleBarStyle.hidden,
-  );
-  
-  windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.show();
-    await windowManager.focus();
-  });
-  
-  runApp(const ApolloApp());
-}
-
-class ApolloApp extends StatelessWidget {
-  final AudioPlayerService? audioPlayerService;
-  final StorageService? storageService;
-
-  const ApolloApp({
-    super.key,
-    this.audioPlayerService,
-    this.storageService,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Apollo',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: MainScreen(
-        audioPlayerService: audioPlayerService,
-        storageService: storageService,
-      ),
-    );
+void main() {
+  if (Platform.isAndroid || Platform.isIOS) {
+    // mobile.main();
+    // TODO: Uncomment when mobile entry point is created
+    throw UnsupportedError('Mobile entry point not yet implemented');
+  } else {
+    desktop.main();
   }
 }

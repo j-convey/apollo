@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/services/audio_player_service.dart';
+import 'package:apollo/core/services/audio_player_service.dart';
 
 /// A single track list item for album pages.
 class AlbumTrackListItem extends StatefulWidget {

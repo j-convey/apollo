@@ -3,7 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'profile_header.dart';
 import 'top_artists_section.dart';
 import 'profile_option_item.dart';
-import '../../core/services/storage_service.dart';
+import 'package:apollo/core/services/storage_service.dart';
 
 class ProfilePage extends StatefulWidget {
   final StorageService? storageService;

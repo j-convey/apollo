@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../../core/services/audio_player_service.dart';
-import '../../../core/database/database_service.dart';
-import '../../album/album_page.dart';
+import 'package:apollo/core/services/audio_player_service.dart';
+import 'package:apollo/core/services/plex/plex_services.dart';
+import 'package:apollo/core/database/database_service.dart';
+import 'package:apollo/desktop/features/album/album_page.dart';
+import 'package:apollo/desktop/features/artist/artist_page.dart';
 
 /// A single track list item for collection pages.
 /// Displays track info and handles play interactions.
@@ -49,7 +51,9 @@ class CollectionTrackListItem extends StatefulWidget {
 
 class _CollectionTrackListItemState extends State<CollectionTrackListItem> {
   bool _isAlbumHovered = false;
+  bool _isArtistHovered = false;
   final DatabaseService _dbService = DatabaseService();
+  final PlexServerService _serverService = PlexServerService();
 
   @override
   Widget build(BuildContext context) {
@@ -101,15 +105,7 @@ class _CollectionTrackListItemState extends State<CollectionTrackListItem> {
                               fontSize: 14,
                             ),
                           ),
-                          Text(
-                            widget.track['artist'] as String,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
-                            ),
-                          ),
+                          _buildArtistLink(),
                         ],
                       ),
                     ),
@@ -302,6 +298,69 @@ class _CollectionTrackListItemState extends State<CollectionTrackListItem> {
         ),
       ),
     );
+  }
+
+  Widget _buildArtistLink() {
+    final artistName = widget.track['artist'] as String;
+    final artistId = widget.track['grandparentRatingKey']?.toString();
+
+    if (artistId == null) {
+      return Text(
+        artistName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: Colors.grey[400],
+          fontSize: 12,
+        ),
+      );
+    }
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isArtistHovered = true),
+      onExit: (_) => setState(() => _isArtistHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => _navigateToArtist(artistId, artistName),
+        child: Text(
+          artistName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: _isArtistHovered ? Colors.white : Colors.grey[400],
+            fontSize: 12,
+            decoration: _isArtistHovered ? TextDecoration.underline : null,
+            decorationColor: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToArtist(String artistId, String artistName) async {
+    final token = widget.currentToken;
+    final trackServerId = widget.track['serverId'] as String?;
+
+    String? serverUrl = widget.currentServerUrl;
+    if (token != null && trackServerId != null) {
+      try {
+        serverUrl = await _serverService.getUrlForServer(token, trackServerId);
+      } catch (e) {
+        debugPrint('TRACK_ITEM: Error getting server URL: $e');
+      }
+    }
+    serverUrl ??= widget.currentServerUrl;
+
+    if (artistId.isNotEmpty && serverUrl != null && token != null && widget.onNavigate != null) {
+      widget.onNavigate!(ArtistPage(
+        artistId: artistId,
+        artistName: artistName,
+        serverUrl: serverUrl,
+        token: token,
+        audioPlayerService: widget.audioPlayerService,
+        onNavigate: widget.onNavigate,
+      ));
+    }
   }
 
   void _navigateToAlbum(BuildContext context, String albumId, String albumTitle) {

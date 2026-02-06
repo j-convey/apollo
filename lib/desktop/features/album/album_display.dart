@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../core/services/audio_player_service.dart';
+import 'package:apollo/core/services/audio_player_service.dart';
 import 'widgets/album_header.dart';
 import 'widgets/album_track_list_item.dart';
 import 'widgets/album_action_buttons.dart';
-import 'utils/album_utils.dart';
+import 'package:apollo/core/utils/collection_utils.dart';
 
 /// Display widget for a single album with its tracks
 class AlbumDisplay extends StatefulWidget {
@@ -207,8 +207,8 @@ class _AlbumDisplayState extends State<AlbumDisplay> {
                     serverUrls: widget.serverUrls ?? {},
                     currentServerUrl: widget.currentServerUrl,
                     audioPlayerService: widget.audioPlayerService,
-                    formatDuration: AlbumUtils.formatDuration,
-                    formatDate: AlbumUtils.formatDate,
+                    formatDuration: CollectionUtils.formatDurationNullable,
+                    formatDate: CollectionUtils.formatDate,
                   );
                 },
                 childCount: _tracks.length,
