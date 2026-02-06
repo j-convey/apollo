@@ -125,7 +125,7 @@ lib/mobile/
 │   └── mini_player.dart          # Collapsed player bar, tappable to expand
 └── features/
     ├── home/
-    ├── songs/
+    ├── library/
     ├── albums/
     ├── artists/
     ├── playlists/

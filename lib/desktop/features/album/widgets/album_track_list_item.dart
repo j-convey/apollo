@@ -74,7 +74,7 @@ class _AlbumTrackListItemState extends State<AlbumTrackListItem> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      widget.track['title'] as String,
+                      widget.track['title'] as String? ?? 'Unknown Title',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -83,7 +83,10 @@ class _AlbumTrackListItemState extends State<AlbumTrackListItem> {
                       ),
                     ),
                     Text(
-                      widget.track['artist'] as String,
+                      widget.track['artist'] as String? ?? 
+                      widget.track['originalTitle'] as String? ?? 
+                      widget.track['grandparentTitle'] as String? ?? 
+                      'Unknown Artist',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(

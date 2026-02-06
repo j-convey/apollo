@@ -102,6 +102,39 @@ class PlexArtistService {
     }
   }
 
+  /// Fetches tracks for an album (children of an album).
+  /// Returns a list of track data maps.
+  Future<List<Map<String, dynamic>>> getAlbumTracks({
+    required String albumId,
+    required String serverUrl,
+    required String token,
+  }) async {
+    try {
+      final url =
+          '$serverUrl/library/metadata/$albumId/children?X-Plex-Token=$token';
+      debugPrint('ARTIST_SERVICE: Fetching album tracks from: $url');
+
+      final response = await _apiClient.get(url, token: token);
+
+      if (response.statusCode == 200) {
+        final data = _apiClient.decodeJson(response);
+        final tracks = data['MediaContainer']?['Metadata'] as List<dynamic>?;
+
+        if (tracks != null) {
+          debugPrint('ARTIST_SERVICE: Found ${tracks.length} tracks for album');
+          return tracks.cast<Map<String, dynamic>>();
+        }
+      }
+
+      debugPrint(
+          'ARTIST_SERVICE: Failed to fetch album tracks. Status: ${response.statusCode}');
+      return [];
+    } catch (e) {
+      debugPrint('ARTIST_SERVICE: Error fetching album tracks: $e');
+      return [];
+    }
+  }
+
   /// Builds an image URL from a Plex image path.
   String buildImageUrl({
     required String imagePath,

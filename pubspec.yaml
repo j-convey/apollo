@@ -42,7 +42,8 @@ dependencies:
   shared_preferences: ^2.2.2
   
   # Local database
-  sqflite_common_ffi: ^2.3.0
+  sqflite: ^2.3.0  # For mobile (Android/iOS)
+  sqflite_common_ffi: ^2.3.0  # For desktop (Windows/Linux/macOS)
   path: ^1.8.3
   
   # URL launcher for browser authentication
@@ -59,7 +60,7 @@ dependencies:
   media_kit_libs_audio: ^1.0.5
 
   # File picking for profile pictures
-  file_picker: ^6.2.0
+  file_picker: ^8.1.4
 
 dev_dependencies:
   flutter_test:

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:apollo/core/models/artist.dart';
 import 'package:apollo/core/services/plex/plex_artist_service.dart';
 import 'package:apollo/core/services/audio_player_service.dart';
+import 'artist_albums_carousel.dart';
+import '../album/album_page.dart';
 
 /// Artist page displaying artist info and popular tracks.
 /// Inspired by Spotify's artist page design.
@@ -32,6 +34,7 @@ class _ArtistPageState extends State<ArtistPage> {
 
   Artist? _artist;
   List<Map<String, dynamic>> _tracks = [];
+  List<Map<String, dynamic>> _albums = [];
   bool _isLoading = true;
   bool _showAllTracks = false;
   int _hoveredTrackIndex = -1;
@@ -54,7 +57,7 @@ class _ArtistPageState extends State<ArtistPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Fetch artist details and tracks in parallel
+      // Fetch artist details, tracks, and albums in parallel
       final results = await Future.wait([
         _artistService.getArtistDetails(
           artistId: widget.artistId,
@@ -66,11 +69,17 @@ class _ArtistPageState extends State<ArtistPage> {
           serverUrl: widget.serverUrl,
           token: widget.token,
         ),
+        _artistService.getArtistAlbums(
+          artistId: widget.artistId,
+          serverUrl: widget.serverUrl,
+          token: widget.token,
+        ),
       ]);
 
       setState(() {
         _artist = results[0] as Artist?;
         _tracks = results[1] as List<Map<String, dynamic>>;
+        _albums = results[2] as List<Map<String, dynamic>>;
         _isLoading = false;
       });
     } catch (e) {
@@ -173,6 +182,9 @@ class _ArtistPageState extends State<ArtistPage> {
 
           // Show more/less button
           SliverToBoxAdapter(child: _buildShowMoreButton()),
+
+          // Albums carousel
+          SliverToBoxAdapter(child: _buildAlbumsCarousel()),
 
           // Bottom padding
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -524,5 +536,65 @@ class _ArtistPageState extends State<ArtistPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildAlbumsCarousel() {
+    if (_albums.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 32),
+      child: ArtistAlbumsCarousel(
+        albums: _albums,
+        serverUrl: widget.serverUrl,
+        token: widget.token,
+        onAlbumTap: _handleAlbumTap,
+      ),
+    );
+  }
+
+  void _handleAlbumTap(Map<String, dynamic> album) {
+    final albumId = album['ratingKey'] as String?;
+    final albumTitle = album['title'] as String? ?? 'Unknown Album';
+    final albumThumb = album['thumb'] as String?;
+
+    if (albumId == null) {
+      debugPrint('ARTIST_PAGE: Cannot navigate to album without ratingKey');
+      return;
+    }
+
+    // Build image URL if thumb exists
+    String? imageUrl;
+    if (albumThumb != null) {
+      imageUrl = _buildImageUrl(albumThumb);
+    }
+
+    // Create AlbumPage
+    final albumPage = AlbumPage(
+      title: albumTitle,
+      imageUrl: imageUrl,
+      audioPlayerService: widget.audioPlayerService,
+      currentToken: widget.token,
+      currentServerUrl: widget.serverUrl,
+      onLoadTracks: () async {
+        // Fetch album tracks from Plex API
+        return await _artistService.getAlbumTracks(
+          albumId: albumId,
+          serverUrl: widget.serverUrl,
+          token: widget.token,
+        );
+      },
+      onNavigate: widget.onNavigate,
+    );
+
+    // Navigate to album page
+    if (widget.onNavigate != null) {
+      widget.onNavigate!(albumPage);
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => albumPage),
+      );
+    }
   }
 }

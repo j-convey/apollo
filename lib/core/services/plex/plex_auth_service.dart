@@ -18,9 +18,18 @@ class PlexAuthService {
       final authUrl = _buildAuthUrl(pinCode);
 
       if (await canLaunchUrl(authUrl)) {
-        await launchUrl(authUrl, mode: LaunchMode.externalApplication);
+        try {
+          await launchUrl(authUrl, mode: LaunchMode.externalApplication);
+        } catch (e) {
+          return _errorResult('Failed to launch browser: $e');
+        }
       } else {
-        return _errorResult('Could not launch authentication URL');
+        // Fallback: try launching with platformDefault mode
+        try {
+          await launchUrl(authUrl);
+        } catch (e) {
+          return _errorResult('No browser available to open authentication URL');
+        }
       }
 
       // Poll for authentication (check every 2 seconds for up to 5 minutes)
