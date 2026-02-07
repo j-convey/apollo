@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../core/database/database_service.dart';
 import '../../../core/models/track.dart';
+import '../../../core/services/plex/plex_services.dart';
+import '../../../core/services/storage_service.dart';
+import 'widgets/track_options_sheet.dart';
 
 /// Library page for mobile showing all songs from the server.
 class MobileLibraryPage extends StatefulWidget {
@@ -12,29 +15,54 @@ class MobileLibraryPage extends StatefulWidget {
 
 class _MobileLibraryPageState extends State<MobileLibraryPage> {
   final DatabaseService _db = DatabaseService();
+  final PlexServerService _serverService = PlexServerService();
+  final StorageService _storageService = StorageService();
   late Future<List<Track>> _tracksFuture;
+  
+  String? _currentToken;
+  Map<String, String> _serverUrls = {};
 
   @override
   void initState() {
     super.initState();
     _loadTracks();
+    _loadServerUrls();
   }
 
   void _loadTracks() {
     _tracksFuture = _db.tracks.getAll();
+  }
+  
+  Future<void> _loadServerUrls() async {
+    final token = await _storageService.getPlexToken();
+    if (token != null) {
+      final urls = await _serverService.fetchServerUrlMap(token);
+      if (mounted) {
+        setState(() {
+          _currentToken = token;
+          _serverUrls = urls;
+        });
+      }
+    }
   }
 
   Future<void> _refreshTracks() async {
     setState(() {
       _loadTracks();
     });
+    await _loadServerUrls();
   }
 
-  String _formatDuration(int ms) {
-    final seconds = (ms / 1000).round();
-    final minutes = seconds ~/ 60;
-    final remainingSeconds = seconds % 60;
-    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+  void _showTrackOptions(BuildContext context, Track track, String? imageUrl) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => TrackOptionsSheet(
+        track: track,
+        imageUrl: imageUrl,
+      ),
+    );
   }
 
   @override
@@ -121,6 +149,11 @@ class _MobileLibraryPageState extends State<MobileLibraryPage> {
                       itemCount: tracks.length,
                       itemBuilder: (context, index) {
                         final track = tracks[index];
+                        final serverUrl = _serverUrls[track.serverId];
+                        final imageUrl = track.albumThumb != null && serverUrl != null && _currentToken != null
+                            ? '$serverUrl${track.albumThumb!}?X-Plex-Token=$_currentToken'
+                            : null;
+
                         return ListTile(
                           leading: Container(
                             width: 48,
@@ -129,11 +162,11 @@ class _MobileLibraryPageState extends State<MobileLibraryPage> {
                               color: const Color(0xFF282828),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: track.albumThumb != null
+                            child: imageUrl != null
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(4),
                                     child: Image.network(
-                                      track.albumThumb!,
+                                      imageUrl,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => const Icon(Icons.music_note, color: Colors.grey),
                                     ),
@@ -152,10 +185,11 @@ class _MobileLibraryPageState extends State<MobileLibraryPage> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          trailing: Text(
-                            _formatDuration(track.duration),
-                            style: const TextStyle(color: Colors.grey, fontSize: 12),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.more_vert, color: Colors.grey),
+                            onPressed: () => _showTrackOptions(context, track, imageUrl),
                           ),
+                          onLongPress: () => _showTrackOptions(context, track, imageUrl),
                           onTap: () {
                             // TODO: Play track
                           },
